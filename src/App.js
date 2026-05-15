@@ -54,7 +54,7 @@ function TabPregled({workouts,metrike,currentTeden}){
 }
 function TabTreningi({workouts}){
   const teki=workouts.filter(w=>isTek(w)&&w.razdalja_km>0)
-  const tedniMap={};workouts.filter(w=>w.razdalja_km>0).forEach(w=>{if(!w.datum)return;const d=new Date(w.datum);const mon=new Date(d);mon.setDate(d.getDate()-((d.getDay()+6)%7));const key=mon.toISOString().slice(0,10);tedniMap[key]=(tedniMap[key]||0)+(w.razdalja_km||0)})
+  const tedniMap={};workouts.filter(w=>isTek(w)&&w.razdalja_km>0).forEach(w=>{if(!w.datum)return;const d=new Date(w.datum);const mon=new Date(d);mon.setDate(d.getDate()-((d.getDay()+6)%7));const key=mon.toISOString().slice(0,10);tedniMap[key]=(tedniMap[key]||0)+(w.razdalja_km||0)})
   const kmPoTednih=Object.entries(tedniMap).sort().slice(-12).map(([k,v])=>({teden:k.slice(5),km:Math.round(v*10)/10}))
   const totalKm=teki.reduce((s,w)=>s+(w.razdalja_km||0),0);const avgHR=teki.filter(w=>w.povprecni_hr).reduce((s,w,_,a)=>s+w.povprecni_hr/a.length,0)
   return(<>
