@@ -618,7 +618,7 @@ export default function App() {
       {tab==='pregled'&&<TabPregled workouts={workouts} metrike={metrike} prehrana={prehrana} laps={laps} currentTeden={currentTeden} formaScore={formaScore} predikcija={predikcija}/>}
       {tab==='treningi'&&<TabTreningi workouts={workouts} metrike={metrike} prehrana={prehrana} laps={laps}/>}
       {tab==='telo'&&<TabTelo metrike={metrike} workouts={workouts}/>}
-      {tab==='prehrana'&&<TabPrehrana prehrana={prehrana} workouts={workouts}/>}
+      {tab==='prehrana'&&<TabPrehrana prehrana={prehrana} workouts={workouts} metrike={metrike}/>}
       {tab==='plan'&&<TabPlan currentTeden={currentTeden}/>}
       {tab==='predikcija'&&<TabPredikcija predikcija={predikcija} workouts={workouts}/>}
     </div>
@@ -684,14 +684,17 @@ function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) {
   // Kalorijski deficit včeraj
   const workoutVceraj = workouts.filter(w => w.datum === danPred)
   const treningKcalVceraj = workoutVceraj.reduce((s, w) => s + (w.kalorije || 0), 0)
-  const porabljeneVceraj = 1800 + treningKcalVceraj
+  const metVceraj = metrike.find(m => m.datum === danPred) || {}
+  const porabljeneVceraj = metVceraj.skupaj_kcal || (metVceraj.bmr_kcal ? metVceraj.bmr_kcal + treningKcalVceraj : 1946 + treningKcalVceraj)
   const deficitVceraj = prehranaVceraj.kalorije_skupaj ? Math.round(prehranaVceraj.kalorije_skupaj - porabljeneVceraj) : null
 
   // Kalorijski deficit zadnjih 7 dni
   const zadnjih7Prehrana = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < tekDatum).slice(0, 7)
   const deficiti7 = zadnjih7Prehrana.map(p => {
     const w = workouts.filter(w2 => w2.datum === p.datum).reduce((s, w2) => s + (w2.kalorije || 0), 0)
-    return p.kalorije_skupaj - (1800 + w)
+    const mD = metrike.find(m2 => m2.datum === p.datum) || {}
+    const por = mD.skupaj_kcal || (mD.bmr_kcal ? mD.bmr_kcal + w : 1946 + w)
+    return p.kalorije_skupaj - por
   })
   const povprecniDeficit7 = deficiti7.length > 0 ? Math.round(deficiti7.reduce((s, d) => s + d, 0) / deficiti7.length) : null
 
@@ -858,8 +861,9 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
   const vcerajMetrike = metrike.find(m => m.datum === YESTERDAY_STR) || {}
   const vcerajWorkout = workouts.filter(w => w.datum === YESTERDAY_STR)
   const aktivneKcalTrening = vcerajWorkout.reduce((s, w) => s + (w.kalorije || 0), 0)
-  const pasivneKcal = 1800 // bazalni metabolizem estimat
-  const skupajPorabljene = pasivneKcal + aktivneKcalTrening
+  const pasivneKcal = z.bmr_kcal || 1946 // Garmin BMR ali formula
+  const aktivneKcalGarmin = z.aktivne_kcal || 0
+  const skupajPorabljene = z.skupaj_kcal || (pasivneKcal + aktivneKcalTrening)
   const zauziteKcal = vcerajPrehrana.kalorije_skupaj || 0
   const deficit = zauziteKcal - skupajPorabljene
   
@@ -992,7 +996,7 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
   </>)
 }
 
-function TabPrehrana({prehrana, workouts}){
+function TabPrehrana({prehrana, workouts, metrike=[]}){
   // Vedno prikaži včerajšnje podatke
   const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.filter(p => p.kalorije_skupaj > 0)[0] || {}
   
@@ -1007,6 +1011,23 @@ function TabPrehrana({prehrana, workouts}){
 
   // Grafi za zadnjih 14 dni
   const graf14 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).slice(0, 14).reverse()
+  
+  // Waterfall podatki za zadnjih 7 dni
+  const waterfall7 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).slice(0, 7).reverse().map(p => {
+    const mD = metrike.find(m => m.datum === p.datum) || {}
+    const bmrD = mD.bmr_kcal || 1946
+    const aktivneD = mD.aktivne_kcal || 0
+    const skupajPor = mD.skupaj_kcal || (bmrD + aktivneD)
+    const deficit = p.kalorije_skupaj - skupajPor
+    return {
+      datum: p.datum?.slice(5),
+      zauzite: p.kalorije_skupaj,
+      bmr: bmrD,
+      aktivne: aktivneD,
+      skupaj_porabljene: skupajPor,
+      deficit: Math.round(deficit),
+    }
+  })
   const kcalData = graf14.map(p => ({ datum: p.datum?.slice(5), kcal: p.kalorije_skupaj, cilj: CILJI.kcal }))
   const beljData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.beljakovine_g, cilj: CILJI.belj }))
   const ohData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.ogljikovi_hidrati_g, cilj: CILJI.oh }))
@@ -1015,7 +1036,10 @@ function TabPrehrana({prehrana, workouts}){
   // Kalorijski deficit graf
   const deficitData = graf14.map(p => {
     const w = workouts.filter(w2 => w2.datum === p.datum).reduce((s, w2) => s + (w2.kalorije || 0), 0)
-    const porabljene = 1800 + w
+    const mD = metrike.find(m2 => m2.datum === p.datum) || {}
+    const porabljene = mD.skupaj_kcal || (mD.bmr_kcal ? mD.bmr_kcal + w : 1946 + w)
+    const bmrD = mD.bmr_kcal || 1946
+    const aktivneD = mD.aktivne_kcal || w
     const def = p.kalorije_skupaj - porabljene
     return { datum: p.datum?.slice(5), zauzite: p.kalorije_skupaj, porabljene, deficit: def }
   })
@@ -1078,6 +1102,50 @@ function TabPrehrana({prehrana, workouts}){
         </div>
       ))}
     </div>
+
+    {/* Waterfall kalorijski graf - zadnjih 7 dni */}
+    {waterfall7.length > 0 && (
+      <div className="card" style={{marginBottom:16}}>
+        <h3>Kalorijska bilanca — zadnjih 7 dni</h3>
+        <div style={{fontSize:11,color:'#475569',marginBottom:12,fontFamily:'DM Mono'}}>
+          Zaužite · BMR (pasivne) · Aktivne · Deficit/Suficit
+        </div>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={waterfall7} margin={{top:4,right:4,left:10,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+            <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={45}/>
+            <Tooltip
+              contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}
+              formatter={(v, name) => {
+                const labels = {zauzite:'Zaužite', bmr:'BMR (pasivne)', aktivne:'Aktivne', deficit:'Bilanca'}
+                return [`${Math.round(v)} kcal`, labels[name]||name]
+              }}
+            />
+            <Legend wrapperStyle={{fontSize:11,color:'#94a3b8'}}/>
+            <Bar dataKey="zauzite" name="Zaužite" fill="#f97316" radius={[3,3,0,0]} opacity={0.9}/>
+            <Bar dataKey="bmr" name="BMR (pasivne)" fill="#3b82f6" radius={[3,3,0,0]} opacity={0.7}/>
+            <Bar dataKey="aktivne" name="Aktivne" fill="#8b5cf6" radius={[3,3,0,0]} opacity={0.7}/>
+            <Line type="monotone" dataKey="deficit" name="Bilanca" stroke={waterfall7.every(d=>d.deficit>=0)?'#22c55e':'#ef4444'} strokeWidth={2} dot={{r:4}} strokeDasharray={waterfall7.some(d=>d.deficit<0)?"0":"0"}
+              dot={(props) => {
+                const {cx,cy,payload} = props
+                return <circle key={cx} cx={cx} cy={cy} r={4} fill={payload.deficit>=0?'#22c55e':'#ef4444'} stroke="none"/>
+              }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+        <div style={{display:'flex',gap:16,marginTop:8,flexWrap:'wrap'}}>
+          {waterfall7.map((d,i)=>(
+            <div key={i} style={{fontSize:11,fontFamily:'DM Mono',textAlign:'center'}}>
+              <div style={{color:'#475569'}}>{d.datum}</div>
+              <div style={{color:d.deficit>=0?'#22c55e':'#ef4444',fontWeight:500}}>
+                {d.deficit>=0?'+':''}{d.deficit}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
     {/* Kalorijski deficit graf */}
     <div className="card" style={{marginBottom:16}}>
