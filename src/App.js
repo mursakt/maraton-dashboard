@@ -1359,38 +1359,7 @@ function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
     })()}
 
 
-    <div className="grid2">
-      <div className="card">
-        <h3>Km ta teden</h3>
-        <div style={{display:'flex',alignItems:'baseline',gap:8}}>
-          <span className="stat-val" style={{color:kmTaTeden>=kmPlan?'#22c55e':'#f97316'}}>{fmt(kmTaTeden)}</span>
-          <span className="stat-unit">km</span>
-          <span style={{fontSize:13,color:'#475569',fontFamily:'DM Mono'}}>/ {kmPlan} km</span>
-        </div>
-        <div style={{fontSize:13,fontFamily:'DM Mono',marginTop:6,color:kmTaTeden>=kmPlan?'#22c55e':'#f97316',fontWeight:500}}>
-          {Math.round((kmTaTeden/(kmPlan||1))*100)}% {kmTaTeden>=kmPlan?'✓ cilj dosežen':'do cilja'}
-        </div>
-      </div>
-      <div className="card">
-        <h3>🎯 Predikcija maratona</h3>
-        {predCas ? (
-          <div>
-            <div style={{display:'flex',alignItems:'baseline',gap:12}}>
-              <span className="pred-main">{predCas}</span>
-              {diffSec !== null && (
-                <span className={diffSec<=0?'pred-diff-pos':'pred-diff-neg'}>
-                  {diffSec<=0?'':'+'}
-                  {diffSec<0?'-':''}
-                  {secToHMS(Math.abs(diffSec)).slice(1)}
-                  {diffSec<=0?' pod ciljem':' nad ciljem'}
-                </span>
-              )}
-            </div>
-            <div className="pred-cilj">cilj: 3:45:00 · zanesljivost {predikcija.zanesljivost}%</div>
-          </div>
-        ) : <div className="empty" style={{padding:8}}>Ni dovolj podatkov</div>}
-      </div>
-    </div>
+    
 
 
     <div className="card" style={{marginBottom:16}}>
