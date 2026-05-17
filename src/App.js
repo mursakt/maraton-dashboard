@@ -517,6 +517,7 @@ export default function App() {
   const [workouts, setWorkouts] = useState([])
   const [metrike, setMetrike] = useState([])
   const [prehrana, setPrehrana] = useState([])
+  const [laps, setLaps] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const currentTeden = getCurrentTeden()
@@ -525,13 +526,14 @@ export default function App() {
     async function fetchAll() {
       setLoading(true)
       try {
-        const [w,m,p] = await Promise.all([
+        const [w,m,p,l] = await Promise.all([
           supabase.from('workouts').select('*').order('datum',{ascending:false}).limit(100),
           supabase.from('dnevne_metrike').select('*').order('datum',{ascending:false}).limit(120),
           supabase.from('prehrana').select('*').order('datum',{ascending:false}).limit(60),
+          supabase.from('laps').select('*').order('datum',{ascending:false}).limit(500),
         ])
         if(w.error)throw w.error; if(m.error)throw m.error; if(p.error)throw p.error
-        setWorkouts(w.data||[]); setMetrike(m.data||[]); setPrehrana(p.data||[])
+        setWorkouts(w.data||[]); setMetrike(m.data||[]); setPrehrana(p.data||[]); setLaps(l.data||[])
       } catch(e){setError(e.message)} finally{setLoading(false)}
     }
     fetchAll()
@@ -560,7 +562,7 @@ export default function App() {
           </button>
         ))}
       </div>
-      {tab==='pregled'&&<TabPregled workouts={workouts} metrike={metrike} prehrana={prehrana} currentTeden={currentTeden} formaScore={formaScore} predikcija={predikcija}/>}
+      {tab==='pregled'&&<TabPregled workouts={workouts} metrike={metrike} prehrana={prehrana} laps={laps} currentTeden={currentTeden} formaScore={formaScore} predikcija={predikcija}/>}
       {tab==='treningi'&&<TabTreningi workouts={workouts}/>}
       {tab==='telo'&&<TabTelo metrike={metrike}/>}
       {tab==='prehrana'&&<TabPrehrana prehrana={prehrana} workouts={workouts}/>}
@@ -570,7 +572,157 @@ export default function App() {
   )
 }
 
-function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcija}){
+
+// ── ANALIZA ZADNJEGA TEKA ─────────────────────────────────────────────────
+function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) {
+  if (!zadnjiTek) return null
+
+  const tekDatum = zadnjiTek.datum
+  const danPred = new Date(new Date(tekDatum) - 86400000).toISOString().slice(0, 10)
+
+  const metrikeDanPred = metrike.find(m => m.datum === danPred) || {}
+  const prehranaVceraj = prehrana.find(p => p.datum === danPred && p.kalorije_skupaj > 0) || {}
+
+  // Kalorijski deficit včeraj
+  const workoutVceraj = workouts.filter(w => w.datum === danPred)
+  const treningKcalVceraj = workoutVceraj.reduce((s, w) => s + (w.kalorije || 0), 0)
+  const porabljeneVceraj = 1800 + treningKcalVceraj
+  const deficitVceraj = prehranaVceraj.kalorije_skupaj ? Math.round(prehranaVceraj.kalorije_skupaj - porabljeneVceraj) : null
+
+  // Kalorijski deficit zadnjih 7 dni
+  const zadnjih7Prehrana = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < tekDatum).slice(0, 7)
+  const deficiti7 = zadnjih7Prehrana.map(p => {
+    const w = workouts.filter(w2 => w2.datum === p.datum).reduce((s, w2) => s + (w2.kalorije || 0), 0)
+    return p.kalorije_skupaj - (1800 + w)
+  })
+  const povprecniDeficit7 = deficiti7.length > 0 ? Math.round(deficiti7.reduce((s, d) => s + d, 0) / deficiti7.length) : null
+
+  // Lap analiza
+  const lapi = lapsTeka.filter(l => l.garmin_activity_id === zadnjiTek.garmin_activity_id)
+    .sort((a, b) => a.lap_number - b.lap_number)
+
+  const tempoStrToSec = t => {
+    if (!t) return null
+    const [m, s] = t.split(':').map(Number)
+    return m * 60 + s
+  }
+
+  // Cardiac drift: HR v prvi tretjini vs zadnji tretjini
+  let cardiacDrift = null
+  let driftOpis = null
+  if (lapi.length >= 3) {
+    const tretjina = Math.floor(lapi.length / 3)
+    const prvaHR = lapi.slice(0, tretjina).filter(l => l.povprecni_hr).reduce((s, l, _, a) => s + l.povprecni_hr / a.length, 0)
+    const zadnjaHR = lapi.slice(-tretjina).filter(l => l.povprecni_hr).reduce((s, l, _, a) => s + l.povprecni_hr / a.length, 0)
+    cardiacDrift = Math.round(zadnjaHR - prvaHR)
+    if (cardiacDrift > 20) driftOpis = 'zelo velik'
+    else if (cardiacDrift > 12) driftOpis = 'velik'
+    else if (cardiacDrift > 6) driftOpis = 'zmeren'
+    else driftOpis = 'minimalen'
+  }
+
+  // Tempo degradacija: prvi 3 km vs zadnji 3 km
+  let tempoDegradacija = null
+  let tempoDegOpis = null
+  if (lapi.length >= 6) {
+    const prvi3 = lapi.slice(0, 3).filter(l => l.povprecni_tempo)
+    const zadnji3 = lapi.slice(-3).filter(l => l.povprecni_tempo)
+    if (prvi3.length > 0 && zadnji3.length > 0) {
+      const avgTempoZac = prvi3.reduce((s, l, _, a) => s + tempoStrToSec(l.povprecni_tempo) / a.length, 0)
+      const avgTempoKon = zadnji3.reduce((s, l, _, a) => s + tempoStrToSec(l.povprecni_tempo) / a.length, 0)
+      tempoDegradacija = Math.round(avgTempoKon - avgTempoZac)
+      if (tempoDegradacija > 30) tempoDegOpis = 'velik padec tempa'
+      else if (tempoDegradacija > 15) tempoDegOpis = 'zmeren padec tempa'
+      else if (tempoDegradacija > 5) tempoDegOpis = 'blag padec tempa'
+      else if (tempoDegradacija < -5) tempoDegOpis = 'negativni split'
+      else tempoDegOpis = 'konstanten tempo'
+    }
+  }
+
+  // Poišči km kjer se je HR začel povečevati nesorazmerno s tempom
+  let kriticniKm = null
+  if (lapi.length >= 4) {
+    for (let i = 2; i < lapi.length; i++) {
+      const l = lapi[i]
+      const prej = lapi[i - 1]
+      if (l.povprecni_hr && prej.povprecni_hr && l.povprecni_tempo && prej.povprecni_tempo) {
+        const hrDelta = l.povprecni_hr - prej.povprecni_hr
+        const tempoDelta = tempoStrToSec(l.povprecni_tempo) - tempoStrToSec(prej.povprecni_tempo)
+        // HR naraste za 5+ bpm, tempo pa se ne izboljša
+        if (hrDelta >= 5 && tempoDelta >= -5 && !kriticniKm) {
+          kriticniKm = i + 1
+        }
+      }
+    }
+  }
+
+  // Glikogenska analiza
+  const tezaKg = metrike.find(m => m.teza_kg)?.teza_kg || 95
+  const ohDanPrej = prehranaVceraj.ogljikovi_hidrati_g || 0
+  const ohNaKg = ohDanPrej > 0 ? Math.round((ohDanPrej / tezaKg) * 10) / 10 : null
+  let glikogenOpis = null
+  if (ohNaKg !== null) {
+    if (ohNaKg < 2) glikogenOpis = 'kritično nizke rezerve'
+    else if (ohNaKg < 3) glikogenOpis = 'zelo nizke rezerve'
+    else if (ohNaKg < 5) glikogenOpis = 'suboptimalne rezerve'
+    else glikogenOpis = 'dobre rezerve'
+  }
+
+  // HRV in spanje
+  const hrv = metrikeDanPred.hrv
+  const spanje = metrikeDanPred.spanje_h
+  const stres = metrikeDanPred.stres_povprecje
+
+  // Training Effect
+  const te = zadnjiTek.aerobni_te
+  let teOpis = null
+  if (te >= 5) teOpis = 'prezahtevno — pretreniranost'
+  else if (te >= 4) teOpis = 'threshold — prezahtevno za lahek dan'
+  else if (te >= 3) teOpis = 'aerobno — ok za bazo'
+  else if (te >= 2) teOpis = 'vzdrževano — lahek tek'
+  else teOpis = 'minimalen učinek'
+
+  // Začetni tempo vs optimalni tempo za bazo (Cona 2 = ~6:40-7:00/km za tvoj profil)
+  const prvLap = lapi[0]
+  const optimalniBazniTempo = 400 // 6:40/km v sekundah
+  let zacetniTempoOpis = null
+  if (prvLap?.povprecni_tempo) {
+    const prvTempoSec = tempoStrToSec(prvLap.povprecni_tempo)
+    const razlika = optimalniBazniTempo - prvTempoSec // pozitivno = prehitro
+    if (razlika > 30) zacetniTempoOpis = `${Math.round(razlika)} sek/km prehitro`
+    else if (razlika > 10) zacetniTempoOpis = `${Math.round(razlika)} sek/km prehitro`
+    else if (razlika < -10) zacetniTempoOpis = `${Math.round(Math.abs(razlika))} sek/km počasneje kot optimalno`
+    else zacetniTempoOpis = 'optimalen začetni tempo'
+  }
+
+  return {
+    tek: zadnjiTek,
+    lapi,
+    cardiacDrift,
+    driftOpis,
+    tempoDegradacija,
+    tempoDegOpis,
+    kriticniKm,
+    ohNaKg,
+    glikogenOpis,
+    ohDanPrej: Math.round(ohDanPrej),
+    tezaKg,
+    hrv,
+    spanje,
+    stres,
+    te,
+    teOpis,
+    prvLap,
+    zacetniTempoOpis,
+    deficitVceraj,
+    povprecniDeficit7,
+    prehranaVceraj,
+    metrikeDanPred,
+  }
+}
+
+
+function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,predikcija}){
   const planTeden=PLAN.find(p=>p.teden===currentTeden)
   const tedStart=planTeden?new Date(planTeden.datum):new Date()
   const tedEnd=new Date(tedStart);tedEnd.setDate(tedEnd.getDate()+7)
@@ -639,7 +791,144 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
 
     {/* Analiza zadnjega teka */}
     {/* AI Analiza teka */}
-    {/* AI analiza bo dodana ko bo backend urejen */}
+    {/* Analiza zadnjega teka */}
+    {(() => {
+      const zadnjiTek = workouts.find(w => isTek(w))
+      const a = zadnjiTek ? analizirajTek(zadnjiTek, laps, metrike, prehrana, workouts) : null
+      if (!a) return null
+
+      const tempoSecToStr = sec => {
+        if (!sec) return '—'
+        return `${Math.floor(sec/60)}:${String(Math.round(sec%60)).padStart(2,'0')}`
+      }
+
+      // Ocena težavnosti
+      let ocena = 'nevtralen'
+      let ocenaEmoji = '😐'
+      let ocenaColor = '#94a3b8'
+      const negativni = [
+        a.cardiacDrift > 12,
+        a.ohNaKg && a.ohNaKg < 3,
+        a.deficitVceraj && a.deficitVceraj < -400,
+        a.hrv && a.hrv < 45,
+        a.spanje && a.spanje < 6.5,
+        a.tempoDegradacija && a.tempoDegradacija > 20,
+      ].filter(Boolean).length
+      if (negativni >= 3) { ocena = 'težak'; ocenaEmoji = '😤'; ocenaColor = '#f97316' }
+      else if (negativni >= 1) { ocena = 'zmerno zahteven'; ocenaEmoji = '😮‍💨'; ocenaColor = '#eab308' }
+      else { ocena = 'lahek'; ocenaEmoji = '😊'; ocenaColor = '#22c55e' }
+
+      // Sestavi točke analize
+      const tocke = []
+
+      // 1. Začetni tempo
+      if (a.prvLap?.povprecni_tempo) {
+        const barva = a.zacetniTempoOpis?.includes('prehitro') ? '#f97316' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `1. km: ${a.prvLap.povprecni_tempo}/km — ${a.zacetniTempoOpis || 'ok'}${a.zacetniTempoOpis?.includes('prehitro') ? '. Previsok začetni tempo je sprostil HR ki se ni mogel več zbiti nazaj.' : '.'}`
+        })
+      }
+
+      // 2. Cardiac drift
+      if (a.cardiacDrift !== null) {
+        const barva = a.cardiacDrift > 12 ? '#f97316' : a.cardiacDrift > 6 ? '#eab308' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `Cardiac drift: +${a.cardiacDrift} bpm (${a.driftOpis}) — HR v zadnji tretjini teka je bil ${a.cardiacDrift} bpm višji kot v prvi${a.cardiacDrift > 12 ? ', kar kaže na preobremenitev ali dehidracijo' : ''}.`
+        })
+      }
+
+      // 3. Kritični km
+      if (a.kriticniKm) {
+        tocke.push({
+          barva: '#f97316',
+          tekst: `Od ${a.kriticniKm}. km naprej je HR začel naraščati brez ustreznega izboljšanja tempa — telo je začelo delati nesorazmerno več za enak rezultat.`
+        })
+      }
+
+      // 4. Tempo degradacija
+      if (a.tempoDegradacija !== null) {
+        const barva = a.tempoDegradacija > 15 ? '#f97316' : a.tempoDegradacija > 5 ? '#eab308' : '#22c55e'
+        const sign = a.tempoDegradacija > 0 ? '+' : ''
+        tocke.push({
+          barva,
+          tekst: `Tempo degradacija: ${sign}${a.tempoDegradacija} sek/km (${a.tempoDegOpis}) — prvi 3 km vs zadnji 3 km.`
+        })
+      }
+
+      // 5. Glikogen
+      if (a.ohNaKg !== null) {
+        const barva = a.ohNaKg < 3 ? '#ef4444' : a.ohNaKg < 5 ? '#eab308' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `Glikogen: ${a.ohDanPrej}g OH dan prej / ${a.tezaKg}kg = ${a.ohNaKg}g/kg — ${a.glikogenOpis}${a.ohNaKg < 3 ? '. Glikogen se izčrpa hitro, telo preide na maščobe ki so manj učinkovite.' : '.'}`
+        })
+      }
+
+      // 6. Kalorijski deficit
+      if (a.deficitVceraj !== null) {
+        const barva = a.deficitVceraj < -400 ? '#ef4444' : a.deficitVceraj < -200 ? '#eab308' : '#22c55e'
+        const defStr = a.deficitVceraj > 0 ? `+${a.deficitVceraj} kcal suficit` : `${a.deficitVceraj} kcal deficit`
+        const deficit7Str = a.povprecniDeficit7 !== null ? ` V zadnjih ${a.povprecniDeficit7 > 0 ? '+' : ''}${a.povprecniDeficit7} kcal/dan povprečno.` : ''
+        tocke.push({
+          barva,
+          tekst: `Kalorije dan prej: ${defStr} (zaužito ${Math.round(a.prehranaVceraj.kalorije_skupaj || 0)} kcal).${deficit7Str}`
+        })
+      }
+
+      // 7. HRV in spanje
+      if (a.hrv || a.spanje) {
+        const hrv = a.hrv ? `HRV ${a.hrv}ms${a.hrv < 45 ? ' — nizek, telo ni bilo regenerirano' : ' — ok'}` : ''
+        const spanje = a.spanje ? `spanje ${fmt(a.spanje)}h${a.spanje < 6.5 ? ' — premalo' : ' — ok'}` : ''
+        const barva = (a.hrv && a.hrv < 45) || (a.spanje && a.spanje < 6.5) ? '#eab308' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `Regeneracija dan prej: ${[hrv, spanje].filter(Boolean).join(', ')}.`
+        })
+      }
+
+      // 8. Training Effect
+      if (a.te) {
+        const barva = a.te >= 4 ? '#f97316' : a.te >= 3 ? '#3b82f6' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `Training Effect: ${fmt(a.te, 1)} — ${a.teOpis}.`
+        })
+      }
+
+      return (
+        <div className="card" style={{marginBottom:16}}>
+          <h3>Analiza zadnjega teka</h3>
+          <div style={{display:'flex',gap:16,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+            <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{a.tek.naziv}</span>
+            <span style={{fontFamily:'DM Mono',fontSize:13,color:'#64748b'}}>{a.tek.datum}</span>
+            <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{fmt(a.tek.razdalja_km)} km</span>
+            <span style={{fontFamily:'DM Mono',fontSize:13,color:hrZonaColor(a.tek.povprecni_hr)}}>{a.tek.povprecni_hr} avg · {a.tek.max_hr} max bpm</span>
+            <span style={{fontSize:13,padding:'2px 10px',borderRadius:4,background:ocenaColor+'22',color:ocenaColor,fontWeight:600}}>{ocenaEmoji} {ocena}</span>
+          </div>
+          {tocke.map((t, i) => (
+            <div key={i} style={{display:'flex',gap:10,padding:'8px 12px',borderRadius:6,marginBottom:6,background:'#0f172a',borderLeft:`3px solid ${t.barva}`,fontSize:13,color:'#94a3b8',alignItems:'flex-start'}}>
+              <span style={{lineHeight:1.5}}>{t.tekst}</span>
+            </div>
+          ))}
+          {a.lapi.length > 0 && (
+            <div style={{marginTop:12}}>
+              <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>HR in tempo po km</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                {a.lapi.map((l, i) => (
+                  <div key={i} style={{padding:'4px 8px',borderRadius:4,background:'#0f172a',border:'1px solid #1e2433',fontSize:11,fontFamily:'DM Mono',minWidth:70}}>
+                    <div style={{color:'#475569'}}>{i+1}. km</div>
+                    <div style={{color:hrZonaColor(l.povprecni_hr)}}>{l.povprecni_hr||'—'} bpm</div>
+                    <div style={{color:'#64748b'}}>{l.povprecni_tempo||'—'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    })()}
 
 
     <div className="grid2">
