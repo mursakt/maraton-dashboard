@@ -32,42 +32,6 @@ const PLAN = [
 // Cilji prehrane
 const CILJI = { kcal: 2240, belj: 224, oh: 196, masc: 62 }
 
-
-// Planirani treningi iz programa
-const PLAN_TRENINGI = [
-  // T01
-  { datum: '2026-04-22', teden: 1, naziv: 'T01A', opis: '5 km lahkotno', km: 5, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-04-23', teden: 1, naziv: 'T01B', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  // T02
-  { datum: '2026-04-27', teden: 2, naziv: 'T02A', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-04-29', teden: 2, naziv: 'T02B', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-02', teden: 2, naziv: 'T02C', opis: '10 km dolgi tek', km: 10, tempo: '6:00', hr: '138–154' },
-  // T03
-  { datum: '2026-05-04', teden: 3, naziv: 'T03A', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-07', teden: 3, naziv: 'T03B', opis: '7 km lahkotno', km: 7, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-09', teden: 3, naziv: 'T03C', opis: '11 km dolgi tek', km: 11, tempo: '6:00', hr: '138–154' },
-  // T04
-  { datum: '2026-05-12', teden: 4, naziv: 'T04A', opis: '7 km lahkotno', km: 7, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-14', teden: 4, naziv: 'T04B', opis: '8 km lahkotno', km: 8, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-16', teden: 4, naziv: 'T04C', opis: '13 km dolgi tek', km: 13, tempo: '6:00', hr: '138–154' },
-  // T05
-  { datum: '2026-05-19', teden: 5, naziv: 'T05A', opis: '7 km lahkotno', km: 7, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-21', teden: 5, naziv: 'T05B', opis: '8 km lahkotno', km: 8, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-23', teden: 5, naziv: 'T05C', opis: '14 km dolgi tek', km: 14, tempo: '6:00', hr: '138–154' },
-  // T06
-  { datum: '2026-05-26', teden: 6, naziv: 'T06A', opis: '5 km lahkotno', km: 5, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-28', teden: 6, naziv: 'T06B', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-30', teden: 6, naziv: 'T06C', opis: '10 km lahkotno ⚡', km: 10, tempo: '6:00', hr: '138–154' },
-  // T07
-  { datum: '2026-06-02', teden: 7, naziv: 'T07A', opis: '5×800m intervali', km: 8, tempo: '4:50', hr: '169–185' },
-  { datum: '2026-06-04', teden: 7, naziv: 'T07B', opis: '8 km lahkotno', km: 8, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-06-06', teden: 7, naziv: 'T07C', opis: '15 km dolgi tek', km: 15, tempo: '6:00', hr: '138–154' },
-  // T08
-  { datum: '2026-06-09', teden: 8, naziv: 'T08A', opis: '🏔️ Hribčki 8×30s + 5km', km: 8, tempo: '6:15', hr: '138–185' },
-  { datum: '2026-06-11', teden: 8, naziv: 'T08B', opis: '9 km lahkotno', km: 9, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-06-13', teden: 8, naziv: 'T08C', opis: '17 km dolgi tek', km: 17, tempo: '6:00', hr: '138–154' },
-]
-
 const FAZA_COLOR = { F1: '#3b82f6', F2: '#eab308', F3: '#ef4444', F4: '#22c55e' }
 const FAZA_LABEL = { F1: 'Faza 1 – Baza', F2: 'Faza 2 – Gradnja', F3: 'Faza 3 – Specifika', F4: 'Tapering' }
 const TODAY = new Date()
@@ -963,19 +927,6 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
         {workouts.slice(0,5).map((w,i)=>(<div key={i} className="workout-item"><span className="date">{w.datum?.slice(5)}</span><span className="type">{w.naziv||w.tip_treninga||'—'}</span><span className="detail">{fmt(w.razdalja_km)} km · {w.povprecni_tempo||'—'}/km · {fmt(w.trajanje_min,0)} min</span><span className="hr-badge" style={{background:hrZonaColor(w.povprecni_hr)+'22',color:hrZonaColor(w.povprecni_hr)}}>{w.povprecni_hr?`${w.povprecni_hr} bpm`:'—'}</span></div>))}
         {workouts.length===0&&<div className="empty">Ni podatkov</div>}
       </div>
-      <div style={{borderTop:'1px dashed #2d3748',margin:'12px 0'}}/>
-      <h3 style={{marginBottom:10}}>Naslednjih 5 treningov</h3>
-      <div className="workout-list">
-        {PLAN_TRENINGI.filter(p => p.datum > TODAY_STR).slice(0,5).map((p,i)=>(
-          <div key={i} className="workout-item">
-            <span className="date">{p.datum.slice(5)}</span>
-            <span className="type" style={{color:'#64748b'}}>{p.naziv}</span>
-            <span className="detail">{p.opis} · {p.km} km · {p.tempo}/km</span>
-            <span className="hr-badge" style={{background:'#1e243380',color:'#64748b'}}>{p.hr} bpm</span>
-          </div>
-        ))}
-        {PLAN_TRENINGI.filter(p => p.datum > TODAY_STR).length === 0 && <div className="empty">Ni prihodnjih treningov v planu</div>}
-      </div>
     </div>
   </>)
 }
@@ -1268,13 +1219,12 @@ function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
       <div className="card">
         <h3>VO2max (trenutni)</h3>
         <div><span className="stat-val" style={{color:'#a78bfa'}}>{zadnjiVo2?fmt(zadnjiVo2,1):'—'}</span></div>
-        <div className="stat-sub">cilj: 52 (za 3:45)</div>
         {vo2Diff !== null && (
-          <div className="stat-sub" style={{color:vo2Diff>0?'#22c55e':vo2Diff<0?'#ef4444':'#6b7280',marginTop:4}}>
+          <div className="stat-sub" style={{color:vo2Diff>0?'#22c55e':vo2Diff<0?'#ef4444':'#6b7280'}}>
             {vo2Diff>0?'+':''}{vo2Diff} vs prejšnji teden
           </div>
         )}
-        {zadnjiVo2 && <div className="stat-sub" style={{color: zadnjiVo2>=52?'#22c55e':'#f97316',marginTop:4}}>{zadnjiVo2>=52?'✓ cilj dosežen':`${fmt(52-zadnjiVo2,1)} do cilja`}</div>}
+        {!vo2Diff && starejsiVo2 === null && <div className="stat-sub">ni primerjave</div>}
       </div>
     </div>
     {/* Analiza zadnjega teka */}
@@ -1441,30 +1391,22 @@ function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
         </ResponsiveContainer>
       ):<div className="empty">Ni dovolj podatkov</div>}
     </div>
-    {hrEfik.length > 1 && (
-        <div className="card" style={{marginBottom:16}}>
-          <h3>HR efikasnost — tempo pri HR 155 bpm</h3>
-          <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>Nižje = boljša aerobna efikasnost. Normaliziran na HR 155 bpm.</div>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={hrEfik} margin={{top:4,right:16,left:10,bottom:0}}>
+    <div className="grid2" style={{marginBottom:16}}>
+  
+      {hrEfik.length > 1 && (
+        <div className="card">
+          <h3>HR efikasnost (tempo pri HR 155)</h3>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={hrEfik} margin={{top:4,right:4,left:-20,bottom:0}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
               <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
-              <YAxis
-                reversed={true}
-                domain={['auto','auto']}
-                tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}
-                tickFormatter={v => { const m=Math.floor(v/60); const s=String(v%60).padStart(2,'0'); return `${m}:${s}` }}
-                width={40}
-              />
-              <Tooltip
-                contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}
-                formatter={v=>{const m=Math.floor(v/60);const s=String(v%60).padStart(2,'0');return[`${m}:${s}/km`,'Tempo pri HR 155']}}
-              />
-              <Line type="monotone" dataKey="efik" stroke="#f59e0b" strokeWidth={2} dot={{r:4,fill:'#f59e0b'}}/>
+              <YAxis domain={['auto','auto']} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>{const m=Math.floor(v/60);const s=String(v%60).padStart(2,'0');return[`${m}:${s}/km (norm.)`, 'Efikasnost']}}/>
+              <Line type="monotone" dataKey="efik" stroke="#f59e0b" strokeWidth={2} dot={{r:3,fill:'#f59e0b'}}/>
             </LineChart>
           </ResponsiveContainer>
         </div>
-      )}}
+      )}
     </div>
     {loadScore.length > 1 && (
       <div className="card" style={{marginBottom:16}}>
