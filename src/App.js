@@ -1190,10 +1190,12 @@ function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
   const vo2Data=workouts.filter(w=>w.vo2max&&w.vo2max>0).slice(0,20).reverse().map(w=>({datum:w.datum?.slice(5),vo2:w.vo2max}))
 
   // HR efikasnost (km/uro pri določenem HR)
-  const hrEfik = teki.filter(w => w.povprecni_hr && w.razdalja_km && w.trajanje_min).slice(0, 14).reverse().map(w => ({
-    datum: w.datum?.slice(5),
-    efik: Math.round((w.razdalja_km / (w.trajanje_min / 60)) * 10) / 10 // km/h
-  }))
+  const hrEfik = teki.filter(w => w.povprecni_hr >= 138 && w.povprecni_hr <= 169 && w.povprecni_tempo).slice(0, 14).reverse().map(w => {
+    const parts = (w.povprecni_tempo||'').split(':')
+    const tempoSec = parts.length === 2 ? parseInt(parts[0])*60 + parseInt(parts[1]) : null
+    const normTempoSec = tempoSec ? Math.round(tempoSec + (w.povprecni_hr - 155) * 3) : null
+    return { datum: w.datum?.slice(5), efik: normTempoSec }
+  }).filter(d => d.efik)
 
   // Load score
   const loadScore = workouts.filter(w => w.trajanje_min && w.aerobni_te).slice(0, 14).reverse().map(w => ({
@@ -1201,11 +1203,29 @@ function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
     load: Math.round(w.trajanje_min * (w.aerobni_te / 2))
   }))
 
+  // VO2max izracun
+  const vo2Sorted = workouts.filter(w=>w.vo2max&&w.vo2max>0).sort((a,b)=>b.datum.localeCompare(a.datum))
+  const zadnjiVo2 = vo2Sorted[0]?.vo2max || null
+  // Poišci VO2max od pred 7 dni
+  const prejsnjiTeden = new Date(TODAY - 7*86400000).toISOString().slice(0,10)
+  const starejsiVo2 = vo2Sorted.find(w => w.datum <= prejsnjiTeden)?.vo2max || null
+  const vo2Diff = zadnjiVo2 && starejsiVo2 ? Math.round((zadnjiVo2 - starejsiVo2)*10)/10 : null
+
   return(<>
-    <div className="grid3">
+    <div className="grid4">
       <StatCard title="Skupaj km (teki)" value={fmt(totalKm,0)} unit="km"/>
       <StatCard title="Povp. HR na tekih" value={avgHR?fmt(avgHR,0):'—'} unit="bpm" sub={avgHR?`Cona ${hrZona(avgHR)}`:''} color={hrZonaColor(avgHR)}/>
       <StatCard title="Število tekov" value={teki.length} sub="v bazi"/>
+      <div className="card">
+        <h3>VO2max (trenutni)</h3>
+        <div><span className="stat-val" style={{color:'#a78bfa'}}>{zadnjiVo2?fmt(zadnjiVo2,1):'—'}</span></div>
+        {vo2Diff !== null && (
+          <div className="stat-sub" style={{color:vo2Diff>0?'#22c55e':vo2Diff<0?'#ef4444':'#6b7280'}}>
+            {vo2Diff>0?'+':''}{vo2Diff} vs prejšnji teden
+          </div>
+        )}
+        {!vo2Diff && starejsiVo2 === null && <div className="stat-sub">ni primerjave</div>}
+      </div>
     </div>
     {/* Analiza zadnjega teka */}
     {(() => {
@@ -1372,29 +1392,16 @@ function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
       ):<div className="empty">Ni dovolj podatkov</div>}
     </div>
     <div className="grid2" style={{marginBottom:16}}>
-      {vo2Data.length>1&&(
-        <div className="card">
-          <h3>VO2max trend</h3>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={vo2Data} margin={{top:4,right:4,left:-20,bottom:0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
-              <YAxis domain={['auto','auto']} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[fmt(v,1),'VO2max']}/>
-              <Line type="monotone" dataKey="vo2" stroke="#a78bfa" strokeWidth={2} dot={{r:3,fill:'#a78bfa'}}/>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+  
       {hrEfik.length > 1 && (
         <div className="card">
-          <h3>HR efikasnost (km/h)</h3>
+          <h3>HR efikasnost (tempo pri HR 155)</h3>
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={hrEfik} margin={{top:4,right:4,left:-20,bottom:0}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
               <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
               <YAxis domain={['auto','auto']} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[`${v} km/h`, 'Hitrost']}/>
+              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>{const m=Math.floor(v/60);const s=String(v%60).padStart(2,'0');return[`${m}:${s}/km (norm.)`, 'Efikasnost']}}/>
               <Line type="monotone" dataKey="efik" stroke="#f59e0b" strokeWidth={2} dot={{r:3,fill:'#f59e0b'}}/>
             </LineChart>
           </ResponsiveContainer>
