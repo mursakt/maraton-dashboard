@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend, ComposedChart, Area } from 'recharts'
- 
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend, ComposedChart } from 'recharts'
+
 const PLAN = [
   { teden: 1,  datum: '2026-04-20', faza: 'F1', km: 11,  ciljnaKg: 97.0 },
   { teden: 2,  datum: '2026-04-27', faza: 'F1', km: 22,  ciljnaKg: 96.5 },
@@ -28,16 +28,16 @@ const PLAN = [
   { teden: 23, datum: '2026-09-21', faza: 'F4', km: 19,  ciljnaKg: 86.0 },
   { teden: 24, datum: '2026-09-28', faza: 'F4', km: 42,  ciljnaKg: 85.0 },
 ]
- 
+
 // Cilji prehrane
 const CILJI = { kcal: 2240, belj: 224, oh: 196, masc: 62 }
- 
+
 const FAZA_COLOR = { F1: '#3b82f6', F2: '#eab308', F3: '#ef4444', F4: '#22c55e' }
 const FAZA_LABEL = { F1: 'Faza 1 – Baza', F2: 'Faza 2 – Gradnja', F3: 'Faza 3 – Specifika', F4: 'Tapering' }
 const TODAY = new Date()
 const TODAY_STR = TODAY.toISOString().slice(0, 10)
 const YESTERDAY_STR = new Date(TODAY - 86400000).toISOString().slice(0, 10)
- 
+
 function getCurrentTeden() {
   for (let i = PLAN.length - 1; i >= 0; i--) { if (new Date(PLAN[i].datum) <= TODAY) return PLAN[i].teden }
   return 1
@@ -46,7 +46,7 @@ function fmt(val, dec = 1) { if (val == null || isNaN(val)) return '—'; return
 function hrZona(hr) { if (!hr) return '—'; if (hr<123) return 'Z0'; if (hr<138) return 'Z1'; if (hr<154) return 'Z2'; if (hr<169) return 'Z3'; if (hr<185) return 'Z4'; return 'Z5' }
 function hrZonaColor(hr) { if (!hr) return '#6b7280'; if (hr<138) return '#22c55e'; if (hr<154) return '#3b82f6'; if (hr<169) return '#eab308'; if (hr<185) return '#f97316'; return '#ef4444' }
 function isTek(w) { const t=(w.tip_treninga||'').toLowerCase(); return t.includes('run')||t.includes('tek') }
- 
+
 function izracunajFormo(hrv, spanje, stres) {
   let score = 0; let factors = 0
   if (hrv) { const h = hrv<30?1:hrv<40?3:hrv<50?5:hrv<60?7:hrv<70?8:10; score+=h*0.4; factors+=0.4 }
@@ -57,7 +57,7 @@ function izracunajFormo(hrv, spanje, stres) {
 }
 function formaColor(s) { if(!s)return'#6b7280'; if(s>=8)return'#22c55e'; if(s>=6)return'#84cc16'; if(s>=4)return'#eab308'; if(s>=2)return'#f97316'; return'#ef4444' }
 function formaLabel(s) { if(!s)return'—'; if(s>=8)return'Odlično'; if(s>=6)return'Dobro'; if(s>=4)return'Povprečno'; if(s>=2)return'Slabo'; return'Kritično' }
- 
+
 // Pripravljenost na naslednji tek (0-100%)
 function izracunajPripravljenost(metrike, prehrana, workouts) {
   const z = metrike[0] || {}
@@ -120,7 +120,7 @@ function izracunajPripravljenost(metrike, prehrana, workouts) {
   if (max === 0) return null
   return Math.round((score / max) * 100)
 }
- 
+
 function pripravljenostColor(p) {
   if (!p) return '#6b7280'
   if (p >= 80) return '#22c55e'
@@ -129,7 +129,7 @@ function pripravljenostColor(p) {
   if (p >= 20) return '#f97316'
   return '#ef4444'
 }
- 
+
 function pripravljenostLabel(p) {
   if (!p) return '—'
   if (p >= 80) return 'Odlično pripravljen'
@@ -138,7 +138,7 @@ function pripravljenostLabel(p) {
   if (p >= 20) return 'Slabo pripravljen'
   return 'Ni priporočljivo teči'
 }
- 
+
 // Analiza zadnjega teka
 function analizirajZadnjiTek(workouts, metrike, prehrana) {
   const zadnjiTek = workouts.find(w => isTek(w))
@@ -212,28 +212,28 @@ function analizirajZadnjiTek(workouts, metrike, prehrana) {
   
   return { tek: zadnjiTek, razlogi, ocena }
 }
- 
+
 function tempoStrToSec(tempo) {
   if (!tempo) return null
   const parts = tempo.split(':')
   if (parts.length !== 2) return null
   return parseInt(parts[0]) * 60 + parseInt(parts[1])
 }
- 
+
 function secToTempoStr(sec) {
   if (!sec) return '—'
   const min = Math.floor(sec / 60)
   const s = Math.round(sec % 60)
   return `${min}:${s.toString().padStart(2, '0')}`
 }
- 
+
 function secToHMS(totalSec) {
   const h = Math.floor(totalSec / 3600)
   const m = Math.floor((totalSec % 3600) / 60)
   const s = Math.round(totalSec % 60)
   return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
- 
+
 function izracunajPredikcijo(workouts, metrike) {
   const teki = workouts.filter(w => isTek(w) && w.razdalja_km > 0 && w.povprecni_hr > 0)
   if (teki.length === 0) return null
@@ -308,7 +308,7 @@ function izracunajPredikcijo(workouts, metrike) {
   }
   return { casFinal, casVo2, casHR, zanesljivost, zanesljivostRazlogi, tezaKorekcija, kmKorekcija, prvicKorekcija, trend, tempoNa155, vo2Uporabljen, maxKm, steviloTekov: teki.length, zadnjaTeza }
 }
- 
+
 // Opozorilo pred treningom
 function opozoriloPredTreningom(workouts, prehrana) {
   const danes = TODAY
@@ -321,7 +321,7 @@ function opozoriloPredTreningom(workouts, prehrana) {
   // Ker nimamo scheduled workouta, gledamo plan teden
   const currentTeden = getCurrentTeden()
   const planTeden = PLAN.find(p => p.teden === currentTeden)
-  const danVTednu = danas.getDay() // 0=ned, 1=pon...
+  const danVTednu = TODAY.getDay() // 0=ned, 1=pon...
   
   // Predpostavimo dolg tek ob koncu tedna
   const jeJutriDolgiTek = danVTednu === 5 || danVTednu === 6 // petek ali sobota
@@ -349,7 +349,7 @@ function opozoriloPredTreningom(workouts, prehrana) {
   }
   return null
 }
- 
+
 const css = `
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   body{background:#0a0a0f;color:#e2e8f0;font-family:'DM Sans',sans-serif}
@@ -430,7 +430,7 @@ const css = `
   .macro-diff{font-size:12px;font-family:'DM Mono',monospace;margin-top:4px;font-weight:500}
   @media(max-width:768px){.grid2,.grid3,.grid4,.grid5{grid-template-columns:1fr}.app{padding:16px}.tabs{flex-wrap:wrap}.pred-main{font-size:48px}}
 `
- 
+
 function StatCard({ title, value, unit, sub, color }) {
   return (
     <div className="card">
@@ -444,7 +444,7 @@ function ProgressBar({ value, max, color = '#3b82f6' }) {
   const pct = Math.min(100, Math.round((value/max)*100))
   return (<div className="progress-bar"><div className="progress-fill" style={{width:`${pct}%`,background:color}}/></div>)
 }
- 
+
 export default function App() {
   const [tab, setTab] = useState('pregled')
   const [workouts, setWorkouts] = useState([])
@@ -453,7 +453,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const currentTeden = getCurrentTeden()
- 
+
   useEffect(() => {
     async function fetchAll() {
       setLoading(true)
@@ -469,16 +469,16 @@ export default function App() {
     }
     fetchAll()
   }, [])
- 
+
   if(loading) return(<div className="app"><style>{css}</style><div className="loading">Nalagam podatke…</div></div>)
   if(error) return(<div className="app"><style>{css}</style><div className="alert warn">⚠️ Napaka: {error}</div></div>)
- 
+
   const planTeden = PLAN.find(p=>p.teden===currentTeden)
   const faza = planTeden?.faza||'F1'
   const zadnjeMetrike = metrike[0]||{}
   const formaScore = izracunajFormo(zadnjeMetrike.hrv, zadnjeMetrike.spanje_h, zadnjeMetrike.stres_povprecje)
   const predikcija = izracunajPredikcijo(workouts, metrike)
- 
+
   return (
     <div className="app"><style>{css}</style>
       <div className="header">
@@ -502,7 +502,7 @@ export default function App() {
     </div>
   )
 }
- 
+
 function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcija}){
   const planTeden=PLAN.find(p=>p.teden===currentTeden)
   const tedStart=planTeden?new Date(planTeden.datum):new Date()
@@ -531,7 +531,7 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
     return p.kalorije_skupaj - (pasivneKcal + w)
   })
   const medianaDeficit = deficiti7.length > 0 ? deficiti7.sort((a,b)=>a-b)[Math.floor(deficiti7.length/2)] : null
- 
+
   const alarms=[]
   if (opozorilo) alarms.push({type:'opozorilo', msg: opozorilo})
   if(z.hrv&&z.hrv<40)alarms.push({type:'warn',msg:'⚠️ HRV nizek ('+z.hrv+'ms) — razmisli o lažjem treningu danes'})
@@ -545,7 +545,7 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
   const predCas = predikcija ? secToHMS(predikcija.casFinal) : null
   const ciljSec = 3*3600+45*60
   const diffSec = predikcija ? predikcija.casFinal - ciljSec : null
- 
+
   return(<>
     {alarms.map((a,i)=><div key={i} className={`alert ${a.type}`}>{a.msg}</div>)}
     
@@ -570,7 +570,7 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
       <StatCard title="Zadnja teža" value={zadnjaTeza?fmt(zadnjaTeza):'—'} unit="kg" sub={planTeden?`cilj: ${planTeden.ciljnaKg} kg`:''}/>
       <StatCard title="Dni do maratona" value={dniDoMaratona} sub="17. oktober 2026"/>
     </div>
- 
+
     {/* Analiza zadnjega teka */}
     {analizaTeka && (
       <div className="card" style={{marginBottom:16}}>
@@ -591,7 +591,7 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
         ))}
       </div>
     )}
- 
+
     <div className="grid2">
       <div className="card"><h3>Km ta teden</h3><ProgressBar value={kmTaTeden} max={kmPlan||1} color={kmTaTeden>=kmPlan?'#22c55e':'#3b82f6'}/><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#475569',fontFamily:'DM Mono',marginTop:6}}><span>{fmt(kmTaTeden)} km</span><span>{kmPlan} km cilj</span></div></div>
       <div className="card">
@@ -614,7 +614,7 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
         ) : <div className="empty" style={{padding:8}}>Ni dovolj podatkov</div>}
       </div>
     </div>
- 
+
     {/* Kalorije: porabljene vs zaužite */}
     <div className="grid2" style={{marginBottom:16}}>
       <div className="card">
@@ -654,7 +654,7 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
         ) : <div className="empty" style={{padding:8}}>Ni dovolj podatkov</div>}
       </div>
     </div>
- 
+
     <div className="grid2">
       <div className="card"><h3>Pot do maratona</h3><ProgressBar value={currentTeden} max={24} color='#ef4444'/><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#475569',fontFamily:'DM Mono',marginTop:6}}><span>Teden {currentTeden}</span><span>{Math.round((currentTeden/24)*100)}% opravljeno</span></div></div>
       <div className="grid3" style={{margin:0}}>
@@ -672,7 +672,7 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
     </div>
   </>)
 }
- 
+
 function TabPrehrana({prehrana, workouts}){
   // Vedno prikaži včerajšnje podatke
   const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.filter(p => p.kalorije_skupaj > 0)[0] || {}
@@ -685,14 +685,14 @@ function TabPrehrana({prehrana, workouts}){
   const avgBelj = z7.reduce((s,p,_,a) => s + p.beljakovine_g/a.length, 0) || 0
   const avgOH = z7.reduce((s,p,_,a) => s + p.ogljikovi_hidrati_g/a.length, 0) || 0
   const avgMasc = z7.reduce((s,p,_,a) => s + p.mascobe_g/a.length, 0) || 0
- 
+
   // Grafi za zadnjih 14 dni
   const graf14 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 14).reverse()
   const kcalData = graf14.map(p => ({ datum: p.datum?.slice(5), kcal: p.kalorije_skupaj, cilj: CILJI.kcal }))
   const beljData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.beljakovine_g, cilj: CILJI.belj }))
   const ohData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.ogljikovi_hidrati_g, cilj: CILJI.oh }))
   const mascData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.mascobe_g, cilj: CILJI.masc }))
- 
+
   // Kalorijski deficit graf
   const deficitData = graf14.map(p => {
     const w = workouts.filter(w2 => w2.datum === p.datum).reduce((s, w2) => s + (w2.kalorije || 0), 0)
@@ -700,7 +700,7 @@ function TabPrehrana({prehrana, workouts}){
     const def = p.kalorije_skupaj - porabljene
     return { datum: p.datum?.slice(5), zauzite: p.kalorije_skupaj, porabljene, deficit: def }
   })
- 
+
   // Analiza trendov
   const trendi = []
   if (avgKcal > 0 && avgKcal < CILJI.kcal * 0.85) trendi.push({ tip: 'warn', msg: `Povprečne kalorije (${Math.round(avgKcal)} kcal) so ${Math.round(CILJI.kcal - avgKcal)} kcal pod ciljem — tveganje premalo energije za treninge.` })
@@ -710,7 +710,7 @@ function TabPrehrana({prehrana, workouts}){
   if (avgBelj >= CILJI.belj * 0.95) trendi.push({ tip: 'ok', msg: `Beljakovine v redu — ${Math.round(avgBelj)}g povprečno, cilj ${CILJI.belj}g. Dobra regeneracija.` })
   if (avgOH >= CILJI.oh * 0.9) trendi.push({ tip: 'ok', msg: `OH v redu — ${Math.round(avgOH)}g povprečno. Glikogenske rezerve optimalne.` })
   if (trendi.length === 0) trendi.push({ tip: 'ok', msg: 'Prehrana v redu — nadaljuj po planu.' })
- 
+
   function diffStr(val, cilj) {
     if (!val || !cilj) return ''
     const diff = val - cilj
@@ -731,11 +731,11 @@ function TabPrehrana({prehrana, workouts}){
     if (inverted) { if(ratio<=1)return'#22c55e'; if(ratio<=1.2)return'#eab308'; return'#ef4444' }
     if(ratio>=0.95)return'#22c55e'; if(ratio>=0.8)return'#eab308'; return'#ef4444'
   }
- 
+
   const grafProps = { margin:{top:4,right:4,left:-20,bottom:0}, height:160 }
   const axisProps = { tick:{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}, interval:'preserveStartEnd' }
   const tooltipProps = { contentStyle:{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12} }
- 
+
   return(<>
     {/* Včerajšnji makri */}
     <div style={{marginBottom:8,fontSize:12,color:'#475569',fontFamily:'DM Mono'}}>Prikazujem podatke za: <span style={{color:'#94a3b8'}}>{prikazDatum}</span></div>
@@ -759,7 +759,7 @@ function TabPrehrana({prehrana, workouts}){
         </div>
       ))}
     </div>
- 
+
     {/* Kalorijski deficit graf */}
     <div className="card" style={{marginBottom:16}}>
       <h3>Zaužite vs porabljene kalorije — zadnjih 14 dni</h3>
@@ -777,7 +777,7 @@ function TabPrehrana({prehrana, workouts}){
         </ResponsiveContainer>
       ) : <div className="empty">Ni dovolj podatkov</div>}
     </div>
- 
+
     {/* Povprečje 7 dni + linijski grafi */}
     <div className="grid2" style={{marginBottom:16}}>
       <div className="card">
@@ -799,7 +799,7 @@ function TabPrehrana({prehrana, workouts}){
           </div>
         ))}
       </div>
- 
+
       {/* Analiza trendov */}
       <div className="card">
         <h3>Analiza trendov</h3>
@@ -811,7 +811,7 @@ function TabPrehrana({prehrana, workouts}){
         ))}
       </div>
     </div>
- 
+
     {/* Linijski grafi za makre */}
     <div className="grid2">
       {[
@@ -839,7 +839,7 @@ function TabPrehrana({prehrana, workouts}){
     </div>
   </>)
 }
- 
+
 function TabPredikcija({predikcija, workouts}){
   if(!predikcija) return <div className="empty">Ni dovolj podatkov za predikcijo</div>
   const {casFinal,casVo2,casHR,zanesljivost,zanesljivostRazlogi,tezaKorekcija,kmKorekcija,prvicKorekcija,trend,tempoNa155,vo2Uporabljen,maxKm,steviloTekov,zadnjaTeza} = predikcija
@@ -914,7 +914,7 @@ function TabPredikcija({predikcija, workouts}){
     <div className="alert info" style={{marginTop:16}}>ℹ️ Predikcija temelji na {steviloTekov} treningih in se bo izboljševala z vsakim novim tekom. Zanesljivost bo visoka (&gt;70%) od T10 naprej.</div>
   </>)
 }
- 
+
 function TabTreningi({workouts}){
   const teki=workouts.filter(w=>isTek(w)&&w.razdalja_km>0)
   const tedniMap={}
@@ -926,19 +926,19 @@ function TabTreningi({workouts}){
   const totalKm=teki.reduce((s,w)=>s+(w.razdalja_km||0),0)
   const avgHR=teki.filter(w=>w.povprecni_hr).reduce((s,w,_,a)=>s+w.povprecni_hr/a.length,0)
   const vo2Data=workouts.filter(w=>w.vo2max&&w.vo2max>0).slice(0,20).reverse().map(w=>({datum:w.datum?.slice(5),vo2:w.vo2max}))
- 
+
   // HR efikasnost (km/uro pri določenem HR)
   const hrEfik = teki.filter(w => w.povprecni_hr && w.razdalja_km && w.trajanje_min).slice(0, 14).reverse().map(w => ({
     datum: w.datum?.slice(5),
     efik: Math.round((w.razdalja_km / (w.trajanje_min / 60)) * 10) / 10 // km/h
   }))
- 
+
   // Load score
   const loadScore = workouts.filter(w => w.trajanje_min && w.aerobni_te).slice(0, 14).reverse().map(w => ({
     datum: w.datum?.slice(5),
     load: Math.round(w.trajanje_min * (w.aerobni_te / 2))
   }))
- 
+
   return(<>
     <div className="grid3">
       <StatCard title="Skupaj km (teki)" value={fmt(totalKm,0)} unit="km"/>
@@ -1012,7 +1012,7 @@ function TabTreningi({workouts}){
     </div>
   </>)
 }
- 
+
 function TabTelo({metrike}){
   const tezaDejansko=metrike.filter(m=>m.teza_kg&&m.datum>='2026-04-20').slice(0,60).reverse()
   const tezaGraf=tezaDejansko.map(m=>{
@@ -1027,7 +1027,7 @@ function TabTelo({metrike}){
   const avgHRV=metrike.filter(m=>m.hrv).slice(0,7).reduce((s,m,_,a)=>s+m.hrv/a.length,0)
   const zadnjaTeza=metrike.find(m=>m.teza_kg)?.teza_kg
   const formaScore=izracunajFormo(z.hrv,z.spanje_h,z.stres_povprecje)
- 
+
   return(<>
     <div className="grid5">
       <StatCard title="Teža (zadnja)" value={zadnjaTeza?fmt(zadnjaTeza):'—'} unit="kg"/>
@@ -1101,7 +1101,7 @@ function TabTelo({metrike}){
     </div>
   </>)
 }
- 
+
 function TabPlan({currentTeden}){
   return(
     <div className="card">
