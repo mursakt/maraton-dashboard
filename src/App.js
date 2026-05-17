@@ -139,79 +139,130 @@ function pripravljenostLabel(p) {
   return 'Ni priporočljivo teči'
 }
 
-// Analiza zadnjega teka
-function analizirajZadnjiTek(workouts, metrike, prehrana) {
+// AI Analiza zadnjega teka
+function AnalizaTeka({ workouts, metrike, prehrana }) {
+  const [analiza, setAnaliza] = React.useState(null)
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState(null)
+
   const zadnjiTek = workouts.find(w => isTek(w))
+
+  React.useEffect(() => {
+    if (!zadnjiTek) return
+    fetchAnaliza()
+  }, [zadnjiTek?.garmin_activity_id])
+
+  async function fetchAnaliza() {
+    if (!zadnjiTek) return
+    setLoading(true)
+    setError(null)
+
+    const tekDatum = zadnjiTek.datum
+    const danPred = new Date(new Date(tekDatum) - 86400000).toISOString().slice(0, 10)
+    const metrikeDanPred = metrike.find(m => m.datum === danPred) || {}
+    const prehranaVceraj = prehrana.find(p => p.datum === danPred && p.kalorije_skupaj > 0) || {}
+    const metrikeTekDan = metrike.find(m => m.datum === tekDatum) || {}
+    const hrDrift = zadnjiTek.max_hr && zadnjiTek.povprecni_hr ? zadnjiTek.max_hr - zadnjiTek.povprecni_hr : null
+
+    const podatki = [
+      "PODATKI TEKA (" + tekDatum + "):",
+      "- Naziv: " + zadnjiTek.naziv,
+      "- Razdalja: " + zadnjiTek.razdalja_km + " km",
+      "- Čas: " + zadnjiTek.trajanje_min + " min",
+      "- Povprečni tempo: " + (zadnjiTek.povprecni_tempo || 'ni podatka') + " /km",
+      "- Povprečni HR: " + zadnjiTek.povprecni_hr + " bpm",
+      "- Max HR: " + zadnjiTek.max_hr + " bpm",
+      "- HR razpon max-avg (cardiac drift indikator): " + (hrDrift ? hrDrift + " bpm" : "ni podatka"),
+      "- Aerobni Training Effect: " + (zadnjiTek.aerobni_te || "ni podatka"),
+      "- Anaerobni Training Effect: " + (zadnjiTek.anaerobni_te || "ni podatka"),
+      "- VO2max: " + (zadnjiTek.vo2max || "ni podatka"),
+      "- Kalorije: " + (zadnjiTek.kalorije || "ni podatka") + " kcal",
+      "",
+      "DAN PRED TEKOM (" + danPred + "):",
+      "- Kalorije: " + (prehranaVceraj.kalorije_skupaj ? Math.round(prehranaVceraj.kalorije_skupaj) + " kcal" : "ni podatka"),
+      "- Ogljikovi hidrati: " + (prehranaVceraj.ogljikovi_hidrati_g ? Math.round(prehranaVceraj.ogljikovi_hidrati_g) + "g" : "ni podatka"),
+      "- Beljakovine: " + (prehranaVceraj.beljakovine_g ? Math.round(prehranaVceraj.beljakovine_g) + "g" : "ni podatka"),
+      "- HRV: " + (metrikeDanPred.hrv ? metrikeDanPred.hrv + " ms" : "ni podatka"),
+      "- Spanje: " + (metrikeDanPred.spanje_h ? metrikeDanPred.spanje_h + " h" : "ni podatka"),
+      "- Stres: " + (metrikeDanPred.stres_povprecje || "ni podatka"),
+      "",
+      "DAN TEKA:",
+      "- HRV: " + (metrikeTekDan.hrv ? metrikeTekDan.hrv + " ms" : "ni podatka"),
+      "- Stres: " + (metrikeTekDan.stres_povprecje || "ni podatka"),
+    ].join("\n")
+
+    const prompt = "Si strokovnjak za analizo teka in maratonske priprave. Analiziraj naslednji tek in pojasni zakaj je bil lahek ali težak. Bodi konkreten, ne splošen. Piši v slovenščini. NE omenjaj ciljev ali priporočil - samo analiziraj kaj se je zgodilo na podlagi podatkov.\n\n" + podatki + "\n\nAnaliziraj:\n1. Tempo in HR dinamika (je bil cardiac drift prisoten glede na razliko max-avg HR?)\n2. Vpliv prehrane dan prej na glikogenske rezerve\n3. Vpliv spanja in HRV na regeneracijo\n4. Kaj pove Training Effect o naporu\n5. Splošna ocena\n\nOdgovori SAMO z JSON formatom brez markdown:\n{\"ocena\": \"težak ali zmerno ali lahek\", \"emoji\": \"emoji\", \"tocke\": [\"točka1\", \"točka2\", \"točka3\", \"točka4\", \"točka5\"]}"
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      })
+      const data = await response.json()
+      const text = data.content && data.content[0] ? data.content[0].text : ''
+      const start = text.indexOf('{')
+      const end = text.lastIndexOf('}')
+      if (start !== -1 && end !== -1) {
+        const parsed = JSON.parse(text.slice(start, end + 1))
+        setAnaliza(parsed)
+      } else {
+        setError('Napaka pri analizi')
+      }
+    } catch(e) {
+      setError('Napaka: ' + e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!zadnjiTek) return null
-  
-  const tekDatum = zadnjiTek.datum
-  const danPred = new Date(new Date(tekDatum) - 86400000).toISOString().slice(0, 10)
-  
-  const metrikeDanPred = metrike.find(m => m.datum === danPred) || {}
-  const prehranaVceraj = prehrana.find(p => p.datum === danPred) || {}
-  const metrikeTekDan = metrike.find(m => m.datum === tekDatum) || {}
-  
-  const razlogi = []
-  let ocena = 'nevtralno'
-  
-  // HR analiza
-  const hr = zadnjiTek.povprecni_hr
-  if (hr > 169) {
-    razlogi.push({ tip: 'warn', msg: `Visok povprečni HR (${hr} bpm) — Cona 4, zelo naporno` })
-    ocena = 'težak'
-  } else if (hr > 154) {
-    razlogi.push({ tip: 'info', msg: `Povprečni HR ${hr} bpm — Cona 3, zmerno naporno` })
-  } else {
-    razlogi.push({ tip: 'ok', msg: `Povprečni HR ${hr} bpm — Cona 2, aerobno` })
-    ocena = 'lahek'
-  }
-  
-  // Prehrana dan prej
-  if (prehranaVceraj.kalorije_skupaj) {
-    if (prehranaVceraj.kalorije_skupaj < CILJI.kcal * 0.8) {
-      razlogi.push({ tip: 'warn', msg: `Dan pred tekom: samo ${Math.round(prehranaVceraj.kalorije_skupaj)} kcal — premalo goriva (cilj ${CILJI.kcal})` })
-      ocena = 'težak'
-    } else {
-      razlogi.push({ tip: 'ok', msg: `Dan pred tekom: ${Math.round(prehranaVceraj.kalorije_skupaj)} kcal — dovolj goriva` })
-    }
-  }
-  
-  if (prehranaVceraj.ogljikovi_hidrati_g) {
-    if (prehranaVceraj.ogljikovi_hidrati_g < CILJI.oh * 0.7) {
-      razlogi.push({ tip: 'warn', msg: `OH dan prej: ${Math.round(prehranaVceraj.ogljikovi_hidrati_g)}g — nizke glikogenske rezerve (cilj ${CILJI.oh}g)` })
-      ocena = 'težak'
-    } else {
-      razlogi.push({ tip: 'ok', msg: `OH dan prej: ${Math.round(prehranaVceraj.ogljikovi_hidrati_g)}g — glikogen napolnjen` })
-    }
-  }
-  
-  // Spanje
-  if (metrikeDanPred.spanje_h) {
-    if (metrikeDanPred.spanje_h < 6.5) {
-      razlogi.push({ tip: 'warn', msg: `Spanje dan prej: ${fmt(metrikeDanPred.spanje_h)}h — premalo regeneracije` })
-      ocena = 'težak'
-    } else {
-      razlogi.push({ tip: 'ok', msg: `Spanje dan prej: ${fmt(metrikeDanPred.spanje_h)}h — dobra regeneracija` })
-    }
-  }
-  
-  // HRV
-  if (metrikeDanPred.hrv) {
-    if (metrikeDanPred.hrv < 40) {
-      razlogi.push({ tip: 'warn', msg: `HRV dan prej: ${metrikeDanPred.hrv}ms — telo ni bilo regenerirano` })
-      ocena = 'težak'
-    } else {
-      razlogi.push({ tip: 'ok', msg: `HRV dan prej: ${metrikeDanPred.hrv}ms — dobra regeneracija` })
-    }
-  }
-  
-  // TE analiza
-  if (zadnjiTek.aerobni_te >= 4) {
-    razlogi.push({ tip: 'warn', msg: `Training Effect ${fmt(zadnjiTek.aerobni_te, 1)} — zelo visoka obremenitev` })
-  }
-  
-  return { tek: zadnjiTek, razlogi, ocena }
+
+  const ocenaColor = analiza ? (analiza.ocena === 'težak' ? '#fcd34d' : analiza.ocena === 'lahek' ? '#86efac' : '#94a3b8') : '#94a3b8'
+  const ocenaBg = analiza ? (analiza.ocena === 'težak' ? '#45180333' : analiza.ocena === 'lahek' ? '#05291633' : '#1e243333') : '#1e243333'
+
+  return (
+    <div className="card" style={{marginBottom:16}}>
+      <h3>🤖 AI Analiza zadnjega teka — {zadnjiTek.naziv} ({zadnjiTek.datum})</h3>
+      <div style={{display:'flex',gap:16,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+        <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{fmt(zadnjiTek.razdalja_km)} km</span>
+        <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{zadnjiTek.povprecni_tempo}/km</span>
+        <span style={{fontFamily:'DM Mono',fontSize:13,color:hrZonaColor(zadnjiTek.povprecni_hr)}}>{zadnjiTek.povprecni_hr} avg · {zadnjiTek.max_hr} max bpm</span>
+        <span style={{fontFamily:'DM Mono',fontSize:12,color:'#64748b'}}>TE: {fmt(zadnjiTek.aerobni_te,1)}</span>
+        {analiza && (
+          <span style={{fontSize:13,padding:'2px 10px',borderRadius:4,background:ocenaBg,color:ocenaColor,fontWeight:600}}>
+            {analiza.emoji} {analiza.ocena.charAt(0).toUpperCase() + analiza.ocena.slice(1)}
+          </span>
+        )}
+      </div>
+      {loading && (
+        <div style={{padding:'16px 0',color:'#64748b',fontSize:13}}>⟳ Claude analizira tek...</div>
+      )}
+      {error && <div className="alert warn">{error}</div>}
+      {analiza && (
+        <div>
+          {analiza.tocke.map((t, i) => (
+            <div key={i} style={{display:'flex',gap:10,padding:'8px 12px',borderRadius:6,marginBottom:6,background:'#0f172a',border:'1px solid #1e2433',fontSize:13,color:'#94a3b8',alignItems:'flex-start'}}>
+              <span style={{color:'#475569',fontFamily:'DM Mono',fontSize:11,minWidth:20,marginTop:1}}>{i+1}.</span>
+              <span style={{lineHeight:1.5}}>{t}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {!loading && !analiza && !error && (
+        <button onClick={fetchAnaliza} style={{padding:'8px 16px',background:'#1e2433',border:'1px solid #2d3748',borderRadius:6,color:'#94a3b8',cursor:'pointer',fontSize:13}}>
+          Analiziraj tek
+        </button>
+      )}
+    </div>
+  )
 }
+
+
 
 function tempoStrToSec(tempo) {
   if (!tempo) return null
@@ -440,9 +491,25 @@ function StatCard({ title, value, unit, sub, color }) {
     </div>
   )
 }
-function ProgressBar({ value, max, color = '#3b82f6' }) {
-  const pct = Math.min(100, Math.round((value/max)*100))
-  return (<div className="progress-bar"><div className="progress-fill" style={{width:`${pct}%`,background:color}}/></div>)
+function ProgressBar({ value, max, color = '#3b82f6', showPct = false }) {
+  const rawPct = Math.round((value / max) * 100)
+  const clampedPct = Math.min(100, rawPct)
+  const over = rawPct > 100
+  return (
+    <div>
+      <div style={{height:6,background:'#1e2433',borderRadius:3,overflow:'hidden',margin:'8px 0',position:'relative'}}>
+        <div style={{
+          height:'100%',
+          width:`${clampedPct}%`,
+          background: color,
+          borderRadius:3,
+          backgroundImage: over ? 'repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(0,0,0,0.4) 3px,rgba(0,0,0,0.4) 6px)' : undefined,
+          transition:'width 0.5s ease'
+        }}/>
+      </div>
+      {showPct && <div style={{fontSize:11,color:rawPct>=100?color:'#64748b',fontFamily:'DM Mono',textAlign:'right',marginTop:-4}}>{rawPct}%</div>}
+    </div>
+  )
 }
 
 export default function App() {
@@ -511,11 +578,10 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
   const z=metrike[0]||{}
   const zadnjaTeza=metrike.find(m=>m.teza_kg)?.teza_kg
   const pripravljenost = izracunajPripravljenost(metrike, prehrana, workouts)
-  const analizaTeka = analizirajZadnjiTek(workouts, metrike, prehrana)
   const opozorilo = opozoriloPredTreningom(workouts, prehrana)
   
   // Kalorijski deficit/suficit
-  const vcerajPrehrana = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana[0] || {}
+  const vcerajPrehrana = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.find(p => p.datum < TODAY_STR && p.kalorije_skupaj > 0) || {}
   const vcerajMetrike = metrike.find(m => m.datum === YESTERDAY_STR) || {}
   const vcerajWorkout = workouts.filter(w => w.datum === YESTERDAY_STR)
   const aktivneKcalTrening = vcerajWorkout.reduce((s, w) => s + (w.kalorije || 0), 0)
@@ -552,7 +618,7 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
     {/* Vrstica 1: Pripravljenost, Forma, KM, Teža, Dni */}
     <div className="grid5" style={{marginBottom:16}}>
       <div className="card">
-        <h3>Pripravljenost na trek</h3>
+        <h3>Pripravljenost na tek</h3>
         <div className="big-ring">
           <div className="big-ring-val" style={{color:pripravljenostColor(pripravljenost)}}>{pripravljenost ? `${pripravljenost}%` : '—'}</div>
           <div className="big-ring-label" style={{color:pripravljenostColor(pripravljenost),fontSize:10}}>{pripravljenostLabel(pripravljenost)}</div>
@@ -572,25 +638,9 @@ function TabPregled({workouts,metrike,prehrana,currentTeden,formaScore,predikcij
     </div>
 
     {/* Analiza zadnjega teka */}
-    {analizaTeka && (
-      <div className="card" style={{marginBottom:16}}>
-        <h3>Analiza zadnjega teka — {analizaTeka.tek.naziv} ({analizaTeka.tek.datum})</h3>
-        <div style={{display:'flex',gap:16,marginBottom:12,flexWrap:'wrap'}}>
-          <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{fmt(analizaTeka.tek.razdalja_km)} km</span>
-          <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{analizaTeka.tek.povprecni_tempo}/km</span>
-          <span style={{fontFamily:'DM Mono',fontSize:13,color:hrZonaColor(analizaTeka.tek.povprecni_hr)}}>{analizaTeka.tek.povprecni_hr} bpm</span>
-          <span style={{fontSize:13,padding:'2px 8px',borderRadius:4,background:analizaTeka.ocena==='težak'?'#45180333':analizaTeka.ocena==='lahek'?'#05291633':'#1e243333',color:analizaTeka.ocena==='težak'?'#fcd34d':analizaTeka.ocena==='lahek'?'#86efac':'#94a3b8',fontWeight:600}}>
-            {analizaTeka.ocena==='težak'?'😤 Težak':analizaTeka.ocena==='lahek'?'😊 Lahek':'😐 Nevtralen'}
-          </span>
-        </div>
-        {analizaTeka.razlogi.map((r,i)=>(
-          <div key={i} className={`analiza-item ${r.tip}`}>
-            <span>{r.tip==='ok'?'✓':r.tip==='warn'?'⚠':'ℹ'}</span>
-            <span>{r.msg}</span>
-          </div>
-        ))}
-      </div>
-    )}
+    {/* AI Analiza teka */}
+    <AnalizaTeka workouts={workouts} metrike={metrike} prehrana={prehrana}/>
+
 
     <div className="grid2">
       <div className="card"><h3>Km ta teden</h3><ProgressBar value={kmTaTeden} max={kmPlan||1} color={kmTaTeden>=kmPlan?'#22c55e':'#3b82f6'}/><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#475569',fontFamily:'DM Mono',marginTop:6}}><span>{fmt(kmTaTeden)} km</span><span>{kmPlan} km cilj</span></div></div>
@@ -687,7 +737,7 @@ function TabPrehrana({prehrana, workouts}){
   const avgMasc = z7.reduce((s,p,_,a) => s + p.mascobe_g/a.length, 0) || 0
 
   // Grafi za zadnjih 14 dni
-  const graf14 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 14).reverse()
+  const graf14 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).slice(0, 14).reverse()
   const kcalData = graf14.map(p => ({ datum: p.datum?.slice(5), kcal: p.kalorije_skupaj, cilj: CILJI.kcal }))
   const beljData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.beljakovine_g, cilj: CILJI.belj }))
   const ohData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.ogljikovi_hidrati_g, cilj: CILJI.oh }))
@@ -755,7 +805,7 @@ function TabPrehrana({prehrana, workouts}){
           {m.val && <div className="macro-diff" style={{color: diffColor(m.val, m.cilj)}}>
             {m.isDiffKcal ? diffStrKcal(m.val, m.cilj) : diffStr(m.val, m.cilj)}
           </div>}
-          {m.val && <ProgressBar value={m.val} max={m.cilj * 1.3} color={diffColor(m.val, m.cilj)}/>}
+          {m.val && <ProgressBar value={m.val} max={m.cilj} color={diffColor(m.val, m.cilj)} showPct={true}/>}
         </div>
       ))}
     </div>
@@ -768,7 +818,7 @@ function TabPrehrana({prehrana, workouts}){
           <ComposedChart data={deficitData} margin={{top:4,right:4,left:-20,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
             <XAxis dataKey="datum" {...axisProps}/>
-            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+            <YAxis domain={[0, dataMax => Math.max(dataMax, g.cilj) * 1.1]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
             <Tooltip {...tooltipProps}/>
             <Legend wrapperStyle={{fontSize:11,color:'#94a3b8'}}/>
             <Bar dataKey="zauzite" fill="#f97316" radius={[3,3,0,0]} name="Zaužite"/>
@@ -827,9 +877,9 @@ function TabPrehrana({prehrana, workouts}){
               <LineChart data={g.data} margin={{top:4,right:4,left:-20,bottom:0}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
                 <XAxis dataKey="datum" {...axisProps}/>
-                <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+                <YAxis domain={[0, dataMax => Math.max(dataMax, g.cilj) * 1.1]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
                 <Tooltip {...tooltipProps} formatter={v=>[`${Math.round(v)} ${g.unit}`, '']}/>
-                <ReferenceLine y={g.cilj} stroke={g.color} strokeDasharray="4 4" strokeOpacity={0.5}/>
+                <ReferenceLine y={g.cilj} stroke={g.color} strokeDasharray="5 3" strokeWidth={1.5} strokeOpacity={0.7} label={{value:"cilj", fill:g.color, fontSize:9, fontFamily:"DM Mono"}}/>
                 <Line type="monotone" dataKey={g.key} stroke={g.color} strokeWidth={2} dot={{r:3,fill:g.color}}/>
               </LineChart>
             </ResponsiveContainer>
@@ -996,7 +1046,7 @@ function TabTreningi({workouts}){
           <BarChart data={loadScore} margin={{top:4,right:0,left:-20,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
             <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+            <YAxis domain={[0, dataMax => Math.max(dataMax, g.cilj) * 1.1]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
             <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
             <Bar dataKey="load" fill="#ef4444" radius={[3,3,0,0]}/>
           </BarChart>
@@ -1060,7 +1110,7 @@ function TabTelo({metrike}){
             <LineChart data={hrvData} margin={{top:4,right:4,left:-20,bottom:0}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
               <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
-              <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+              <YAxis domain={[0, dataMax => Math.max(dataMax, g.cilj) * 1.1]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
               <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
               <ReferenceLine y={50} stroke="#22c55e" strokeDasharray="4 4"/>
               <Line type="monotone" dataKey="hrv" stroke="#22c55e" strokeWidth={2} dot={false}/>
