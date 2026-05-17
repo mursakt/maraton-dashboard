@@ -568,7 +568,7 @@ export default function App() {
   return (
     <div className="app"><style>{css}</style>
       <div className="header">
-        <h1>💪 Fitness Tracker TM</h1>
+        <h1>Fitness Tracker TM</h1>
         <div className="teden-badge">Teden <span>T{String(currentTeden).padStart(2,'0')}</span> · <span style={{color:FAZA_COLOR[faza]}}>{FAZA_LABEL[faza]}</span></div>
       </div>
       <div className="tabs">
@@ -832,18 +832,13 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
     <div className="grid5" style={{marginBottom:16}}>
       <div className="card">
         <h3>Pripravljenost na tek</h3>
-        <div className="big-ring">
-          <div className="big-ring-val" style={{color:pripravljenostColor(pripravljenost)}}>{pripravljenost ? `${pripravljenost}%` : '—'}</div>
-          <div className="big-ring-label" style={{color:pripravljenostColor(pripravljenost),fontSize:10}}>{pripravljenostLabel(pripravljenost)}</div>
-        </div>
+        <div><span className="stat-val" style={{color:pripravljenostColor(pripravljenost)}}>{pripravljenost ? `${pripravljenost}%` : '—'}</span></div>
+        <div className="stat-sub" style={{color:pripravljenostColor(pripravljenost)}}>{pripravljenostLabel(pripravljenost)}</div>
       </div>
       <div className="card">
         <h3>Forma danes</h3>
-        <div className="forma-ring">
-          <div className="forma-score" style={{color:formaColor(formaScore)}}>{formaScore?fmt(formaScore):'—'}</div>
-          <div className="forma-label" style={{color:formaColor(formaScore)}}>{formaLabel(formaScore)}</div>
-          <div className="forma-sub">iz 10</div>
-        </div>
+        <div><span className="stat-val" style={{color:formaColor(formaScore)}}>{formaScore?fmt(formaScore):'—'}</span></div>
+        <div className="stat-sub" style={{color:formaColor(formaScore)}}>{formaLabel(formaScore)}</div>
       </div>
       <StatCard title="Km ta teden" value={fmt(kmTaTeden)} unit="km" sub={`plan: ${kmPlan} km`} color={kmTaTeden>=kmPlan?'#22c55e':'#f97316'}/>
       <StatCard title="Zadnja teža" value={zadnjaTeza?fmt(zadnjaTeza):'—'} unit="kg" sub={planTeden?`cilj: ${planTeden.ciljnaKg} kg`:''}/>
@@ -1478,7 +1473,7 @@ function TabTelo({metrike, workouts=[]}){
       <StatCard title="HRV (zadnji)" value={z.hrv?fmt(z.hrv,0):'—'} unit="ms" color={z.hrv>50?'#22c55e':z.hrv>35?'#eab308':'#ef4444'}/>
       <StatCard title="Spanje povp. 7d" value={avgSpanje?fmt(avgSpanje):'—'} unit="h" color={avgSpanje>=7.5?'#22c55e':avgSpanje>=6.5?'#eab308':'#ef4444'}/>
       <StatCard title="HRV povp. 7d" value={avgHRV?fmt(avgHRV,0):'—'} unit="ms" color={avgHRV>50?'#22c55e':avgHRV>35?'#eab308':'#ef4444'}/>
-      <div className="card"><h3>Forma danes</h3><div className="forma-ring"><div className="forma-score" style={{color:formaColor(formaScore)}}>{formaScore?fmt(formaScore):'—'}</div><div className="forma-label" style={{color:formaColor(formaScore)}}>{formaLabel(formaScore)}</div><div className="forma-sub">iz 10</div></div></div>
+      <div className="card"><h3>Forma danes</h3><div><span className="stat-val" style={{color:formaColor(formaScore)}}>{formaScore?fmt(formaScore):'—'}</span></div><div className="stat-sub" style={{color:formaColor(formaScore)}}>{formaLabel(formaScore)}</div></div>
     </div>
     <div className="card" style={{marginBottom:16}}>
       <h3>Teža — dejanska vs plan (kg)</h3>
