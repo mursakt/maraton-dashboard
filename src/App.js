@@ -857,15 +857,23 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
   const opozorilo = opozoriloPredTreningom(workouts, prehrana)
   
   // Kalorijski deficit/suficit
-  const vcerajPrehrana = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.find(p => p.datum < TODAY_STR && p.kalorije_skupaj > 0) || {}
-  const vcerajMetrike = metrike.find(m => m.datum === YESTERDAY_STR) || {}
-  const vcerajWorkout = workouts.filter(w => w.datum === YESTERDAY_STR)
+  // Poišči zadnji datum kjer imamo OBA podatka - MFP in Garmin metrike
+  const skupniDatum = (() => {
+    const mfpDatumi = new Set(prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).map(p => p.datum))
+    const metrikeDatumi = new Set(metrike.filter(m => m.datum < TODAY_STR).map(m => m.datum))
+    const skupni = [...mfpDatumi].filter(d => metrikeDatumi.has(d)).sort().reverse()
+    return skupni[0] || YESTERDAY_STR
+  })()
+  const vcerajPrehrana = prehrana.find(p => p.datum === skupniDatum) || {}
+  const vcerajMetrike = metrike.find(m => m.datum === skupniDatum) || {}
+  const vcerajWorkout = workouts.filter(w => w.datum === skupniDatum)
   const aktivneKcalTrening = vcerajWorkout.reduce((s, w) => s + (w.kalorije || 0), 0)
   const pasivneKcal = z.bmr_kcal || 1946 // Garmin BMR ali formula
   const aktivneKcalGarmin = z.aktivne_kcal || 0
   const skupajPorabljene = z.skupaj_kcal || (pasivneKcal + aktivneKcalTrening)
+  // Garmin skupaj_kcal ze vkljucuje ves trening - ne sestevaj posebej
   const zauziteKcal = vcerajPrehrana.kalorije_skupaj || 0
-  const deficit = zauziteKcal - skupajPorabljene
+  const deficit = zauziteKcal - skupajPorabljene // skupaj_kcal ze vkljucuje trening
   
   // 7-dnevna mediana deficita
   const zadnjih7 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 7)
@@ -947,16 +955,18 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
     {/* Kalorije: porabljene vs zaužite */}
     <div className="grid2" style={{marginBottom:16}}>
       <div className="card">
-        <h3>Kalorije včeraj</h3>
-        <div style={{display:'flex',gap:16,alignItems:'flex-end',marginBottom:8}}>
-          <div>
-            <div style={{fontSize:11,color:'#64748b',marginBottom:4}}>Porabljene</div>
+        <h3>Kalorije <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({skupniDatum})</span></h3>
+        <div style={{display:'flex',gap:24,alignItems:'flex-start',marginBottom:8}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,color:'#64748b',marginBottom:4,textTransform:'uppercase',letterSpacing:'.5px'}}>Porabljene</div>
             <div style={{fontSize:24,fontFamily:'DM Mono',fontWeight:300}}>{skupajPorabljene} <span style={{fontSize:12,color:'#64748b'}}>kcal</span></div>
-            <div style={{fontSize:11,color:'#475569'}}>~{pasivneKcal} bazal + {aktivneKcalTrening} trening</div>
+            <div style={{fontSize:11,color:'#475569',marginTop:4}}>
+              {z.bmr_kcal ? `${z.bmr_kcal} bazal + ${z.aktivne_kcal||0} aktivne` : `~${pasivneKcal} bazal + ${aktivneKcalTrening} trening`}
+            </div>
           </div>
-          <div style={{fontSize:28,color:'#1e2433'}}>vs</div>
-          <div>
-            <div style={{fontSize:11,color:'#64748b',marginBottom:4}}>Zaužite</div>
+          <div style={{fontSize:20,color:'#2d3748',alignSelf:'center'}}>vs</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,color:'#64748b',marginBottom:4,textTransform:'uppercase',letterSpacing:'.5px'}}>Zaužite</div>
             <div style={{fontSize:24,fontFamily:'DM Mono',fontWeight:300,color:zauziteKcal>0?'#e2e8f0':'#475569'}}>{zauziteKcal||'—'} <span style={{fontSize:12,color:'#64748b'}}>kcal</span></div>
           </div>
         </div>
@@ -1084,10 +1094,10 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
     <div style={{marginBottom:8,fontSize:12,color:'#475569',fontFamily:'DM Mono'}}>Prikazujem podatke za: <span style={{color:'#94a3b8'}}>{prikazDatum}</span></div>
     <div className="grid4" style={{marginBottom:16}}>
       {[
-        { title: 'Kalorije (včeraj)', val: vceraj.kalorije_skupaj, cilj: CILJI.kcal, unit: 'kcal', isDiffKcal: true },
-        { title: 'Beljakovine (včeraj)', val: vceraj.beljakovine_g, cilj: CILJI.belj, unit: 'g' },
-        { title: 'OH (včeraj)', val: vceraj.ogljikovi_hidrati_g, cilj: CILJI.oh, unit: 'g' },
-        { title: 'Maščobe (včeraj)', val: vceraj.mascobe_g, cilj: CILJI.masc, unit: 'g' },
+        { title: `Kalorije (${prikazDatum})`, val: vceraj.kalorije_skupaj, cilj: CILJI.kcal, unit: 'kcal', isDiffKcal: true },
+        { title: `Beljakovine (${prikazDatum})`, val: vceraj.beljakovine_g, cilj: CILJI.belj, unit: 'g' },
+        { title: `OH (${prikazDatum})`, val: vceraj.ogljikovi_hidrati_g, cilj: CILJI.oh, unit: 'g' },
+        { title: `Maščobe (${prikazDatum})`, val: vceraj.mascobe_g, cilj: CILJI.masc, unit: 'g' },
       ].map((m, i) => (
         <div key={i} className="macro-card">
           <h3>{m.title}</h3>
@@ -1134,13 +1144,14 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
             />
           </ComposedChart>
         </ResponsiveContainer>
-        <div style={{display:'flex',gap:16,marginTop:8,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:6,marginTop:12,flexWrap:'wrap'}}>
           {waterfall7.map((d,i)=>(
-            <div key={i} style={{fontSize:11,fontFamily:'DM Mono',textAlign:'center'}}>
-              <div style={{color:'#475569'}}>{d.datum}</div>
-              <div style={{color:d.deficit>=0?'#22c55e':'#ef4444',fontWeight:500}}>
+            <div key={i} style={{padding:'6px 10px',borderRadius:6,background:'#0f172a',border:`1px solid ${d.deficit>=0?'#14532d':'#450a0a'}`,fontSize:11,fontFamily:'DM Mono',minWidth:64,textAlign:'center'}}>
+              <div style={{color:'#475569',marginBottom:3}}>{d.datum}</div>
+              <div style={{color:d.deficit>=0?'#22c55e':'#ef4444',fontWeight:600,fontSize:12}}>
                 {d.deficit>=0?'+':''}{d.deficit}
               </div>
+              <div style={{color:'#334155',fontSize:10,marginTop:2}}>kcal</div>
             </div>
           ))}
         </div>
