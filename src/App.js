@@ -1475,8 +1475,7 @@ function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
             </LineChart>
           </ResponsiveContainer>
         </div>
-      )}}
-    </div>
+      )}
     {loadScore.length > 1 && (
       <div className="card" style={{marginBottom:16}}>
         <h3>Tedenski load score</h3>
