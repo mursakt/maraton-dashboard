@@ -568,8 +568,7 @@ export default function App() {
   return (
     <div className="app"><style>{css}</style>
       <div className="header">
-        <h1>🏁 Maraton Ljubljana 2026</h1>
-        <span className="sub">Timmu · cilj 3:45 · 17. oktober</span>
+        <h1>💪 Fitness Tracker TM</h1>
         <div className="teden-badge">Teden <span>T{String(currentTeden).padStart(2,'0')}</span> · <span style={{color:FAZA_COLOR[faza]}}>{FAZA_LABEL[faza]}</span></div>
       </div>
       <div className="tabs">
@@ -580,8 +579,8 @@ export default function App() {
         ))}
       </div>
       {tab==='pregled'&&<TabPregled workouts={workouts} metrike={metrike} prehrana={prehrana} laps={laps} currentTeden={currentTeden} formaScore={formaScore} predikcija={predikcija}/>}
-      {tab==='treningi'&&<TabTreningi workouts={workouts}/>}
-      {tab==='telo'&&<TabTelo metrike={metrike}/>}
+      {tab==='treningi'&&<TabTreningi workouts={workouts} metrike={metrike} prehrana={prehrana} laps={laps}/>}
+      {tab==='telo'&&<TabTelo metrike={metrike} workouts={workouts}/>}
       {tab==='prehrana'&&<TabPrehrana prehrana={prehrana} workouts={workouts}/>}
       {tab==='plan'&&<TabPlan currentTeden={currentTeden}/>}
       {tab==='predikcija'&&<TabPredikcija predikcija={predikcija} workouts={workouts}/>}
@@ -853,195 +852,34 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
 
     {/* Analiza zadnjega teka */}
     {/* AI Analiza teka */}
-    {/* Analiza zadnjega teka */}
-    {(() => {
-      const zadnjiTek = workouts.find(w => isTek(w))
-      const a = zadnjiTek ? analizirajTek(zadnjiTek, laps, metrike, prehrana, workouts) : null
-      if (!a) return null
-
-      const tempoSecToStr = sec => {
-        if (!sec) return '—'
-        return `${Math.floor(sec/60)}:${String(Math.round(sec%60)).padStart(2,'0')}`
-      }
-
-      // Ocena težavnosti
-      let ocena = 'nevtralen'
-      let ocenaEmoji = '😐'
-      let ocenaColor = '#94a3b8'
-      const negativni = [
-        a.cardiacDrift > 12,
-        a.ohNaKg && a.ohNaKg < 3,
-        a.deficitVceraj && a.deficitVceraj < -400,
-        a.hrv && a.hrv < 45,
-        a.spanje && a.spanje < 6.5,
-        a.tempoDegradacija && a.tempoDegradacija > 20,
-      ].filter(Boolean).length
-      if (negativni >= 3) { ocena = 'težak'; ocenaEmoji = '😤'; ocenaColor = '#f97316' }
-      else if (negativni >= 1) { ocena = 'zmerno zahteven'; ocenaEmoji = '😮‍💨'; ocenaColor = '#eab308' }
-      else { ocena = 'lahek'; ocenaEmoji = '😊'; ocenaColor = '#22c55e' }
-
-      // Sestavi točke analize
-      const tocke = []
-
-      // 1. Začetni tempo
-      if (a.prvLap?.povprecni_tempo) {
-        const barva = a.zacetniTempoOpis?.includes('prehitro') ? '#f97316' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `1. km: ${a.prvLap.povprecni_tempo}/km — ${a.zacetniTempoOpis || 'ok'}${a.zacetniTempoOpis?.includes('prehitro') ? '. Previsok začetni tempo je sprostil HR ki se ni mogel več zbiti nazaj.' : '.'}`
-        })
-      }
-
-      // 2. Cardiac drift
-      if (a.cardiacDrift !== null) {
-        const barva = a.cardiacDrift > 12 ? '#f97316' : a.cardiacDrift > 6 ? '#eab308' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `Cardiac drift: +${a.cardiacDrift} bpm (${a.driftOpis}) — HR v zadnji tretjini teka je bil ${a.cardiacDrift} bpm višji kot v prvi${a.cardiacDrift > 12 ? ', kar kaže na preobremenitev ali dehidracijo' : ''}.`
-        })
-      }
-
-      // 3. Kritični km
-      if (a.kriticniKm) {
-        tocke.push({
-          barva: '#f97316',
-          tekst: `Od ${a.kriticniKm}. km naprej je HR začel naraščati brez ustreznega izboljšanja tempa — telo je začelo delati nesorazmerno več za enak rezultat.`
-        })
-      }
-
-      // 4. Tempo degradacija
-      if (a.tempoDegradacija !== null) {
-        const barva = a.tempoDegradacija > 15 ? '#f97316' : a.tempoDegradacija > 5 ? '#eab308' : '#22c55e'
-        const sign = a.tempoDegradacija > 0 ? '+' : ''
-        tocke.push({
-          barva,
-          tekst: `Tempo degradacija: ${sign}${a.tempoDegradacija} sek/km (${a.tempoDegOpis}) — prvi 3 km vs zadnji 3 km.`
-        })
-      }
-
-      // 5. Glikogen
-      if (a.ohNaKg !== null) {
-        const barva = a.ohNaKg < 3 ? '#ef4444' : a.ohNaKg < 5 ? '#eab308' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `Glikogen: ${a.ohDanPrej}g OH dan prej / ${a.tezaKg}kg = ${a.ohNaKg}g/kg — ${a.glikogenOpis}${a.ohNaKg < 3 ? '. Glikogen se izčrpa hitro, telo preide na maščobe ki so manj učinkovite.' : '.'}`
-        })
-      }
-
-      // 6. Kalorijski deficit
-      if (a.deficitVceraj !== null) {
-        const barva = a.deficitVceraj < -400 ? '#ef4444' : a.deficitVceraj < -200 ? '#eab308' : '#22c55e'
-        const defStr = a.deficitVceraj > 0 ? `+${a.deficitVceraj} kcal suficit` : `${a.deficitVceraj} kcal deficit`
-        const deficit7Str = a.povprecniDeficit7 !== null ? ` V zadnjih 7 dneh povprečno ${a.povprecniDeficit7 > 0 ? '+' : ''}${a.povprecniDeficit7} kcal/dan.` : ''
-        let defKomentar = ''
-        if (a.deficitVceraj !== null) {
-          if (a.deficitVceraj < -600) defKomentar = ' Velik deficit — mišice in glikogen so bili slabo dopolnjeni.'
-          else if (a.deficitVceraj < -300) defKomentar = ' Zmeren deficit — regeneracija bila omejena.'
-          else if (a.deficitVceraj < 0) defKomentar = ' Blagi deficit — ni kritično.'
-          else defKomentar = ' Suficit — dobro za regeneracijo.'
-        }
-        tocke.push({
-          barva,
-          tekst: `Kalorije dan prej: ${defStr} (zaužito ${Math.round(a.prehranaVceraj.kalorije_skupaj || 0)} kcal).${defKomentar}${deficit7Str}`
-        })
-      }
-
-      // 7. HRV in spanje
-      if (a.hrv || a.spanje) {
-        const hrv = a.hrv ? `HRV ${a.hrv}ms${a.hrv < 45 ? ' — nizek, telo ni bilo regenerirano' : ' — ok'}` : ''
-        const spanje = a.spanje ? `spanje ${fmt(a.spanje)}h${a.spanje < 6.5 ? ' — premalo' : ' — ok'}` : ''
-        const barva = (a.hrv && a.hrv < 45) || (a.spanje && a.spanje < 6.5) ? '#eab308' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `Regeneracija dan prej: ${[hrv, spanje].filter(Boolean).join(', ')}.`
-        })
-      }
-
-      // 8. Training Effect
-      if (a.te) {
-        const barva = a.te >= 4 ? '#f97316' : a.te >= 3 ? '#3b82f6' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `Training Effect: ${fmt(a.te, 1)} — ${a.teOpis}.`
-        })
-      }
-
-      return (
-        <div className="card" style={{marginBottom:16}}>
-          <h3>Analiza zadnjega teka</h3>
-          <div style={{display:'flex',gap:16,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
-            <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{a.tek.naziv}</span>
-            <span style={{fontFamily:'DM Mono',fontSize:13,color:'#64748b'}}>{a.tek.datum}</span>
-            <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{fmt(a.tek.razdalja_km)} km</span>
-            <span style={{fontFamily:'DM Mono',fontSize:13,color:hrZonaColor(a.tek.povprecni_hr)}}>{a.tek.povprecni_hr} avg · {a.tek.max_hr} max bpm</span>
-            <span style={{fontSize:13,padding:'2px 10px',borderRadius:4,background:ocenaColor+'22',color:ocenaColor,fontWeight:600}}>{ocenaEmoji} {ocena}</span>
-          </div>
-          {tocke.map((t, i) => (
-            <div key={i} style={{display:'flex',gap:10,padding:'8px 12px',borderRadius:6,marginBottom:6,background:'#0f172a',borderLeft:`3px solid ${t.barva}`,fontSize:13,color:'#94a3b8',alignItems:'flex-start'}}>
-              <span style={{lineHeight:1.5}}>{t.tekst}</span>
-            </div>
-          ))}
-          {a.lapi.length > 0 && (
-            <div style={{marginTop:12}}>
-              <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>HR in tempo po km</div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                {a.lapi.map((l, i) => (
-                  <div key={i} style={{padding:'4px 8px',borderRadius:4,background:'#0f172a',border:'1px solid #1e2433',fontSize:11,fontFamily:'DM Mono',minWidth:70}}>
-                    <div style={{color:'#475569'}}>{i+1}. km</div>
-                    <div style={{color:hrZonaColor(l.povprecni_hr)}}>{l.povprecni_hr||'—'} bpm</div>
-                    <div style={{color:'#64748b'}}>{l.povprecni_tempo||'—'}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )
-    })()}
-
-
-    <div className="grid2">
-      <div className="card"><h3>Km ta teden</h3><ProgressBar value={kmTaTeden} max={kmPlan||1} color={kmTaTeden>=kmPlan?'#22c55e':'#3b82f6'}/><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#475569',fontFamily:'DM Mono',marginTop:6}}><span>{fmt(kmTaTeden)} km</span><span>{kmPlan} km cilj</span></div></div>
-      <div className="card">
-        <h3>🎯 Predikcija maratona</h3>
-        {predCas ? (
-          <div>
-            <div style={{display:'flex',alignItems:'baseline',gap:12}}>
-              <span className="pred-main">{predCas}</span>
-              {diffSec !== null && (
-                <span className={diffSec<=0?'pred-diff-pos':'pred-diff-neg'}>
-                  {diffSec<=0?'':'+'}
-                  {diffSec<0?'-':''}
-                  {secToHMS(Math.abs(diffSec)).slice(1)}
-                  {diffSec<=0?' pod ciljem':' nad ciljem'}
-                </span>
-              )}
-            </div>
-            <div className="pred-cilj">cilj: 3:45:00 · zanesljivost {predikcija.zanesljivost}%</div>
-          </div>
-        ) : <div className="empty" style={{padding:8}}>Ni dovolj podatkov</div>}
-      </div>
-    </div>
-
     {/* Load kartice */}
     {(() => {
       const { atl, ctl, razmerje, razmerjeOpis, razmerjeColor } = izracunajLoad(workouts)
       return (
         <div className="grid3" style={{marginBottom:16}}>
           <div className="card">
-            <h3>Akutni Load (7 dni)</h3>
-            <div className="stat-val" style={{color: atl > 200 ? '#ef4444' : atl > 100 ? '#eab308' : '#22c55e'}}>{atl}</div>
-            <div className="stat-sub">kratkoročna utrujenost</div>
+            <h3>Akutni Load — ATL (7 dni)</h3>
+            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
+              <span className="stat-val" style={{color: atl > 200 ? '#ef4444' : atl > 100 ? '#eab308' : '#22c55e'}}>{atl}</span>
+              <span style={{fontSize:12,color: atl > 200 ? '#ef4444' : atl > 100 ? '#eab308' : '#22c55e',fontWeight:500}}>{atl > 200 ? 'visok' : atl > 100 ? 'zmeren' : 'nizek'}</span>
+            </div>
+            <div className="stat-sub">kratkoročna utrujenost · optimalno: 80–150</div>
           </div>
           <div className="card">
-            <h3>Kronični Load (28 dni)</h3>
-            <div className="stat-val" style={{color:'#3b82f6'}}>{ctl}</div>
-            <div className="stat-sub">fitnes baza</div>
+            <h3>Kronični Load — CTL (28 dni)</h3>
+            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
+              <span className="stat-val" style={{color: ctl < 30 ? '#6b7280' : ctl < 60 ? '#3b82f6' : '#22c55e'}}>{ctl}</span>
+              <span style={{fontSize:12,color: ctl < 30 ? '#6b7280' : ctl < 60 ? '#3b82f6' : '#22c55e',fontWeight:500}}>{ctl < 30 ? 'nizek' : ctl < 60 ? 'zmeren' : 'visok'}</span>
+            </div>
+            <div className="stat-sub">fitnes baza · višji = boljša baza</div>
           </div>
           <div className="card">
             <h3>ATL/CTL Razmerje</h3>
-            <div className="stat-val" style={{color: razmerjeColor}}>{razmerje !== null ? razmerje.toFixed(2) : '—'}</div>
-            <div className="stat-sub" style={{color: razmerjeColor}}>{razmerjeOpis}</div>
+            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
+              <span className="stat-val" style={{color: razmerjeColor}}>{razmerje !== null ? razmerje.toFixed(2) : '—'}</span>
+              <span style={{fontSize:12,color: razmerjeColor,fontWeight:500}}>{razmerjeOpis}</span>
+            </div>
+            <div className="stat-sub">optimalno: 0.8–1.3 · &gt;1.5 = nevarnost</div>
           </div>
         </div>
       )
@@ -1087,14 +925,7 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
       </div>
     </div>
 
-    <div className="grid2">
-      <div className="card"><h3>Pot do maratona</h3><ProgressBar value={currentTeden} max={24} color='#ef4444'/><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#475569',fontFamily:'DM Mono',marginTop:6}}><span>Teden {currentTeden}</span><span>{Math.round((currentTeden/24)*100)}% opravljeno</span></div></div>
-      <div className="grid3" style={{margin:0}}>
-        <StatCard title="HRV (zadnji)" value={z.hrv?fmt(z.hrv,0):'—'} unit="ms" sub="cilj: >50ms" color={z.hrv>50?'#22c55e':z.hrv>35?'#eab308':'#ef4444'}/>
-        <StatCard title="Spanje" value={z.spanje_h?fmt(z.spanje_h):'—'} unit="h" sub="cilj: >7.5h" color={z.spanje_h>=7.5?'#22c55e':z.spanje_h>=6.5?'#eab308':'#ef4444'}/>
-        <StatCard title="Stres" value={z.stres_povprecje?fmt(z.stres_povprecje,0):'—'} sub="cilj: <30" color={!z.stres_povprecje?'#6b7280':z.stres_povprecje<30?'#22c55e':z.stres_povprecje<50?'#eab308':'#ef4444'}/>
-      </div>
-    </div>
+
     <div className="card">
       <h3>Zadnji 5 treningov</h3>
       <div className="workout-list">
@@ -1351,7 +1182,7 @@ function TabPredikcija({predikcija, workouts}){
   </>)
 }
 
-function TabTreningi({workouts}){
+function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
   const teki=workouts.filter(w=>isTek(w)&&w.razdalja_km>0)
   const tedniMap={}
   workouts.filter(w=>isTek(w)&&w.razdalja_km>0).forEach(w=>{
@@ -1381,6 +1212,187 @@ function TabTreningi({workouts}){
       <StatCard title="Povp. HR na tekih" value={avgHR?fmt(avgHR,0):'—'} unit="bpm" sub={avgHR?`Cona ${hrZona(avgHR)}`:''} color={hrZonaColor(avgHR)}/>
       <StatCard title="Število tekov" value={teki.length} sub="v bazi"/>
     </div>
+    {/* Analiza zadnjega teka */}
+    {(() => {
+      const zadnjiTek = workouts.find(w => isTek(w))
+      const a = zadnjiTek ? analizirajTek(zadnjiTek, laps, metrike, prehrana, workouts) : null
+      if (!a) return null
+
+      const tempoSecToStr = sec => {
+        if (!sec) return '—'
+        return `${Math.floor(sec/60)}:${String(Math.round(sec%60)).padStart(2,'0')}`
+      }
+
+      // Ocena težavnosti
+      let ocena = 'nevtralen'
+      let ocenaEmoji = '😐'
+      let ocenaColor = '#94a3b8'
+      const negativni = [
+        a.cardiacDrift > 12,
+        a.ohNaKg && a.ohNaKg < 3,
+        a.deficitVceraj && a.deficitVceraj < -400,
+        a.hrv && a.hrv < 45,
+        a.spanje && a.spanje < 6.5,
+        a.tempoDegradacija && a.tempoDegradacija > 20,
+      ].filter(Boolean).length
+      if (negativni >= 3) { ocena = 'težak'; ocenaEmoji = '😤'; ocenaColor = '#f97316' }
+      else if (negativni >= 1) { ocena = 'zmerno zahteven'; ocenaEmoji = '😮‍💨'; ocenaColor = '#eab308' }
+      else { ocena = 'lahek'; ocenaEmoji = '😊'; ocenaColor = '#22c55e' }
+
+      // Sestavi točke analize
+      const tocke = []
+
+      // 1. Začetni tempo
+      if (a.prvLap?.povprecni_tempo) {
+        const barva = a.zacetniTempoOpis?.includes('prehitro') ? '#f97316' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `1. km: ${a.prvLap.povprecni_tempo}/km — ${a.zacetniTempoOpis || 'ok'}${a.zacetniTempoOpis?.includes('prehitro') ? '. Previsok začetni tempo je sprostil HR ki se ni mogel več zbiti nazaj.' : '.'}`
+        })
+      }
+
+      // 2. Cardiac drift
+      if (a.cardiacDrift !== null) {
+        const barva = a.cardiacDrift > 12 ? '#f97316' : a.cardiacDrift > 6 ? '#eab308' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `Cardiac drift: +${a.cardiacDrift} bpm (${a.driftOpis}) — HR v zadnji tretjini teka je bil ${a.cardiacDrift} bpm višji kot v prvi${a.cardiacDrift > 12 ? ', kar kaže na preobremenitev ali dehidracijo' : ''}.`
+        })
+      }
+
+      // 3. Kritični km
+      if (a.kriticniKm) {
+        tocke.push({
+          barva: '#f97316',
+          tekst: `Od ${a.kriticniKm}. km naprej je HR začel naraščati brez ustreznega izboljšanja tempa — telo je začelo delati nesorazmerno več za enak rezultat.`
+        })
+      }
+
+      // 4. Tempo degradacija
+      if (a.tempoDegradacija !== null) {
+        const barva = a.tempoDegradacija > 15 ? '#f97316' : a.tempoDegradacija > 5 ? '#eab308' : '#22c55e'
+        const sign = a.tempoDegradacija > 0 ? '+' : ''
+        tocke.push({
+          barva,
+          tekst: `Tempo degradacija: ${sign}${a.tempoDegradacija} sek/km (${a.tempoDegOpis}) — prvi 3 km vs zadnji 3 km.`
+        })
+      }
+
+      // 5. Glikogen
+      if (a.ohNaKg !== null) {
+        const barva = a.ohNaKg < 3 ? '#ef4444' : a.ohNaKg < 5 ? '#eab308' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `Glikogen: ${a.ohDanPrej}g OH dan prej / ${a.tezaKg}kg = ${a.ohNaKg}g/kg — ${a.glikogenOpis}${a.ohNaKg < 3 ? '. Glikogen se izčrpa hitro, telo preide na maščobe ki so manj učinkovite.' : '.'}`
+        })
+      }
+
+      // 6. Kalorijski deficit
+      if (a.deficitVceraj !== null) {
+        const barva = a.deficitVceraj < -400 ? '#ef4444' : a.deficitVceraj < -200 ? '#eab308' : '#22c55e'
+        const defStr = a.deficitVceraj > 0 ? `+${a.deficitVceraj} kcal suficit` : `${a.deficitVceraj} kcal deficit`
+        const deficit7Str = a.povprecniDeficit7 !== null ? ` V zadnjih 7 dneh povprečno ${a.povprecniDeficit7 > 0 ? '+' : ''}${a.povprecniDeficit7} kcal/dan.` : ''
+        let defKomentar = ''
+        if (a.deficitVceraj !== null) {
+          if (a.deficitVceraj < -600) defKomentar = ' Velik deficit — mišice in glikogen so bili slabo dopolnjeni.'
+          else if (a.deficitVceraj < -300) defKomentar = ' Zmeren deficit — regeneracija bila omejena.'
+          else if (a.deficitVceraj < 0) defKomentar = ' Blagi deficit — ni kritično.'
+          else defKomentar = ' Suficit — dobro za regeneracijo.'
+        }
+        tocke.push({
+          barva,
+          tekst: `Kalorije dan prej: ${defStr} (zaužito ${Math.round(a.prehranaVceraj.kalorije_skupaj || 0)} kcal).${defKomentar}${deficit7Str}`
+        })
+      }
+
+      // 7. HRV in spanje
+      if (a.hrv || a.spanje) {
+        const hrv = a.hrv ? `HRV ${a.hrv}ms${a.hrv < 45 ? ' — nizek, telo ni bilo regenerirano' : ' — ok'}` : ''
+        const spanje = a.spanje ? `spanje ${fmt(a.spanje)}h${a.spanje < 6.5 ? ' — premalo' : ' — ok'}` : ''
+        const barva = (a.hrv && a.hrv < 45) || (a.spanje && a.spanje < 6.5) ? '#eab308' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `Regeneracija dan prej: ${[hrv, spanje].filter(Boolean).join(', ')}.`
+        })
+      }
+
+      // 8. Training Effect
+      if (a.te) {
+        const barva = a.te >= 4 ? '#f97316' : a.te >= 3 ? '#3b82f6' : '#22c55e'
+        tocke.push({
+          barva,
+          tekst: `Training Effect: ${fmt(a.te, 1)} — ${a.teOpis}.`
+        })
+      }
+
+      return (
+        <div className="card" style={{marginBottom:16}}>
+          <h3>Analiza zadnjega teka</h3>
+          <div style={{display:'flex',gap:16,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+            <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{a.tek.naziv}</span>
+            <span style={{fontFamily:'DM Mono',fontSize:13,color:'#64748b'}}>{a.tek.datum}</span>
+            <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{fmt(a.tek.razdalja_km)} km</span>
+            <span style={{fontFamily:'DM Mono',fontSize:13,color:hrZonaColor(a.tek.povprecni_hr)}}>{a.tek.povprecni_hr} avg · {a.tek.max_hr} max bpm</span>
+            <span style={{fontSize:13,padding:'2px 10px',borderRadius:4,background:ocenaColor+'22',color:ocenaColor,fontWeight:600}}>{ocenaEmoji} {ocena}</span>
+          </div>
+          {tocke.map((t, i) => (
+            <div key={i} style={{display:'flex',gap:10,padding:'8px 12px',borderRadius:6,marginBottom:6,background:'#0f172a',borderLeft:`3px solid ${t.barva}`,fontSize:13,color:'#94a3b8',alignItems:'flex-start'}}>
+              <span style={{lineHeight:1.5}}>{t.tekst}</span>
+            </div>
+          ))}
+          {a.lapi.length > 0 && (
+            <div style={{marginTop:12}}>
+              <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>HR in tempo po km</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                {a.lapi.map((l, i) => (
+                  <div key={i} style={{padding:'4px 8px',borderRadius:4,background:'#0f172a',border:'1px solid #1e2433',fontSize:11,fontFamily:'DM Mono',minWidth:70}}>
+                    <div style={{color:'#475569'}}>{i+1}. km</div>
+                    <div style={{color:hrZonaColor(l.povprecni_hr)}}>{l.povprecni_hr||'—'} bpm</div>
+                    <div style={{color:'#64748b'}}>{l.povprecni_tempo||'—'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    })()}
+
+
+    <div className="grid2">
+      <div className="card">
+        <h3>Km ta teden</h3>
+        <div style={{display:'flex',alignItems:'baseline',gap:8}}>
+          <span className="stat-val" style={{color:kmTaTeden>=kmPlan?'#22c55e':'#f97316'}}>{fmt(kmTaTeden)}</span>
+          <span className="stat-unit">km</span>
+          <span style={{fontSize:13,color:'#475569',fontFamily:'DM Mono'}}>/ {kmPlan} km</span>
+        </div>
+        <div style={{fontSize:13,fontFamily:'DM Mono',marginTop:6,color:kmTaTeden>=kmPlan?'#22c55e':'#f97316',fontWeight:500}}>
+          {Math.round((kmTaTeden/(kmPlan||1))*100)}% {kmTaTeden>=kmPlan?'✓ cilj dosežen':'do cilja'}
+        </div>
+      </div>
+      <div className="card">
+        <h3>🎯 Predikcija maratona</h3>
+        {predCas ? (
+          <div>
+            <div style={{display:'flex',alignItems:'baseline',gap:12}}>
+              <span className="pred-main">{predCas}</span>
+              {diffSec !== null && (
+                <span className={diffSec<=0?'pred-diff-pos':'pred-diff-neg'}>
+                  {diffSec<=0?'':'+'}
+                  {diffSec<0?'-':''}
+                  {secToHMS(Math.abs(diffSec)).slice(1)}
+                  {diffSec<=0?' pod ciljem':' nad ciljem'}
+                </span>
+              )}
+            </div>
+            <div className="pred-cilj">cilj: 3:45:00 · zanesljivost {predikcija.zanesljivost}%</div>
+          </div>
+        ) : <div className="empty" style={{padding:8}}>Ni dovolj podatkov</div>}
+      </div>
+    </div>
+
+
     <div className="card" style={{marginBottom:16}}>
       <h3>Km po tednih (samo teki)</h3>
       {kmPoTednih.length>0?(
@@ -1476,7 +1488,7 @@ function TabTreningi({workouts}){
   </>)
 }
 
-function TabTelo({metrike}){
+function TabTelo({metrike, workouts=[]}){
   const tezaDejansko=metrike.filter(m=>m.teza_kg&&m.datum>='2026-04-20').slice(0,60).reverse()
   const tezaGraf=tezaDejansko.map(m=>{
     const p=PLAN.slice().reverse().find(pl=>pl.datum<=m.datum)
@@ -1489,7 +1501,7 @@ function TabTelo({metrike}){
   const avgSpanje=metrike.filter(m=>m.spanje_h).slice(0,7).reduce((s,m,_,a)=>s+m.spanje_h/a.length,0)
   const avgHRV=metrike.filter(m=>m.hrv).slice(0,7).reduce((s,m,_,a)=>s+m.hrv/a.length,0)
   const zadnjaTeza=metrike.find(m=>m.teza_kg)?.teza_kg
-  const formaScore=izracunajFormo(z.hrv,z.spanje_h,z.stres_povprecje,[])
+  const formaScore=izracunajFormo(z.hrv,z.spanje_h,z.stres_povprecje,workouts)
 
   return(<>
     <div className="grid5">
