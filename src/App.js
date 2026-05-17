@@ -493,19 +493,19 @@ function StatCard({ title, value, unit, sub, color }) {
 }
 function ProgressBar({ value, max, color = '#3b82f6', showPct = false }) {
   const rawPct = Math.round((value / max) * 100)
-  const clampedPct = Math.min(100, rawPct)
   const over = rawPct > 100
+  const extraPct = over ? Math.min(rawPct - 100, 50) : 0
   return (
     <div>
-      <div style={{height:6,background:'#1e2433',borderRadius:3,overflow:'hidden',margin:'8px 0',position:'relative'}}>
-        <div style={{
-          height:'100%',
-          width:`${clampedPct}%`,
-          background: color,
-          borderRadius:3,
-          backgroundImage: over ? 'repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(0,0,0,0.4) 3px,rgba(0,0,0,0.4) 6px)' : undefined,
-          transition:'width 0.5s ease'
-        }}/>
+      <div style={{height:6,background:'#1e2433',borderRadius:3,overflow:'hidden',margin:'8px 0',position:'relative',display:'flex'}}>
+        {over ? (
+          <>
+            <div style={{height:'100%',width:'100%',background:color,borderRadius:3,position:'absolute',left:0,top:0}}/>
+            <div style={{height:'100%',width:`${extraPct}%`,background:color,backgroundImage:'repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(0,0,0,0.5) 3px,rgba(0,0,0,0.5) 6px)',borderRadius:'0 3px 3px 0',position:'absolute',right:0,top:0}}/>
+          </>
+        ) : (
+          <div style={{height:'100%',width:`${rawPct}%`,background:color,borderRadius:3,transition:'width 0.5s ease'}}/>
+        )}
       </div>
       {showPct && <div style={{fontSize:11,color:rawPct>=100?color:'#64748b',fontFamily:'DM Mono',textAlign:'right',marginTop:-4}}>{rawPct}%</div>}
     </div>
@@ -818,7 +818,7 @@ function TabPrehrana({prehrana, workouts}){
           <ComposedChart data={deficitData} margin={{top:4,right:4,left:-20,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
             <XAxis dataKey="datum" {...axisProps}/>
-            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={[0, 'auto']}/>
+            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={([dataMin, dataMax]) => [0, Math.ceil(dataMax * 1.2)]}/>
             <Tooltip {...tooltipProps}/>
             <Legend wrapperStyle={{fontSize:11,color:'#94a3b8'}}/>
             <Bar dataKey="zauzite" fill="#f97316" radius={[3,3,0,0]} name="Zaužite"/>
@@ -869,7 +869,10 @@ function TabPrehrana({prehrana, workouts}){
         { title: 'Beljakovine — zadnjih 14 dni', data: beljData, key: 'val', cilj: CILJI.belj, color: '#22c55e', unit: 'g' },
         { title: 'OH — zadnjih 14 dni', data: ohData, key: 'val', cilj: CILJI.oh, color: '#3b82f6', unit: 'g' },
         { title: 'Maščobe — zadnjih 14 dni', data: mascData, key: 'val', cilj: CILJI.masc, color: '#a78bfa', unit: 'g' },
-      ].map((g, i) => (
+      ].map((g, i) => {
+        const maxVal = g.data.length > 0 ? Math.max(...g.data.map(d => d[g.key] || 0), g.cilj) : g.cilj
+        const yMax = Math.ceil(maxVal * 1.15)
+        return (
         <div key={i} className="card">
           <h3>{g.title}</h3>
           {g.data.length > 1 ? (
@@ -877,15 +880,16 @@ function TabPrehrana({prehrana, workouts}){
               <LineChart data={g.data} margin={{top:4,right:4,left:-20,bottom:0}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
                 <XAxis dataKey="datum" {...axisProps}/>
-                <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={[0, 'auto']}/>
+                <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={[0, yMax]}/>
                 <Tooltip {...tooltipProps} formatter={v=>[`${Math.round(v)} ${g.unit}`, '']}/>
-                <ReferenceLine y={g.cilj} stroke={g.color} strokeDasharray="5 3" strokeWidth={1.5} strokeOpacity={0.7} label={{value:"cilj", fill:g.color, fontSize:9, fontFamily:"DM Mono"}}/>
+                <ReferenceLine y={g.cilj} stroke={g.color} strokeDasharray="5 3" strokeWidth={1.5} strokeOpacity={0.7}/>
                 <Line type="monotone" dataKey={g.key} stroke={g.color} strokeWidth={2} dot={{r:3,fill:g.color}}/>
               </LineChart>
             </ResponsiveContainer>
           ) : <div className="empty">Ni dovolj podatkov</div>}
         </div>
-      ))}
+        )
+      })}
     </div>
   </>)
 }
@@ -1046,7 +1050,7 @@ function TabTreningi({workouts}){
           <BarChart data={loadScore} margin={{top:4,right:0,left:-20,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
             <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={[0, 'auto']}/>
+            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={([dataMin, dataMax]) => [0, Math.ceil(dataMax * 1.2)]}/>
             <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
             <Bar dataKey="load" fill="#ef4444" radius={[3,3,0,0]}/>
           </BarChart>
@@ -1110,7 +1114,7 @@ function TabTelo({metrike}){
             <LineChart data={hrvData} margin={{top:4,right:4,left:-20,bottom:0}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
               <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
-              <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={[0, 'auto']}/>
+              <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={([dataMin, dataMax]) => [0, Math.ceil(dataMax * 1.2)]}/>
               <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
               <ReferenceLine y={50} stroke="#22c55e" strokeDasharray="4 4"/>
               <Line type="monotone" dataKey="hrv" stroke="#22c55e" strokeWidth={2} dot={false}/>
