@@ -605,6 +605,7 @@ export default function App() {
     <div className="app"><style>{css}</style>
       <div className="header">
         <h1>Fitness Tracker TM</h1>
+        <div style={{fontSize:10,color:'#2d3748',fontFamily:'DM Mono',marginTop:2,userSelect:'all'}}>https://maraton-dashboard.vercel.app/api/data</div>
         <div className="teden-badge">Teden <span>T{String(currentTeden).padStart(2,'0')}</span> · <span style={{color:FAZA_COLOR[faza]}}>{FAZA_LABEL[faza]}</span></div>
       </div>
       <div className="tabs">
