@@ -47,11 +47,19 @@ function hrZona(hr) { if (!hr) return '—'; if (hr<123) return 'Z0'; if (hr<138
 function hrZonaColor(hr) { if (!hr) return '#6b7280'; if (hr<138) return '#22c55e'; if (hr<154) return '#3b82f6'; if (hr<169) return '#eab308'; if (hr<185) return '#f97316'; return '#ef4444' }
 function isTek(w) { const t=(w.tip_treninga||'').toLowerCase(); return t.includes('run')||t.includes('tek') }
 
-function izracunajFormo(hrv, spanje, stres) {
+function izracunajFormo(hrv, spanje, stres, workouts) {
   let score = 0; let factors = 0
-  if (hrv) { const h = hrv<30?1:hrv<40?3:hrv<50?5:hrv<60?7:hrv<70?8:10; score+=h*0.4; factors+=0.4 }
-  if (spanje) { const s = spanje<5?1:spanje<6?3:spanje<6.5?5:spanje<7?6:spanje<7.5?7.5:spanje<8?9:10; score+=s*0.35; factors+=0.35 }
-  if (stres) { const st = stres>75?1:stres>60?3:stres>45?5:stres>35?6:stres>25?8:10; score+=st*0.25; factors+=0.25 }
+  if (hrv) { const h = hrv<30?1:hrv<40?3:hrv<50?5:hrv<60?7:hrv<70?8:10; score+=h*0.35; factors+=0.35 }
+  if (spanje) { const s = spanje<5?1:spanje<6?3:spanje<6.5?5:spanje<7?6:spanje<7.5?7.5:spanje<8?9:10; score+=s*0.3; factors+=0.3 }
+  if (stres) { const st = stres>75?1:stres>60?3:stres>45?5:stres>35?6:stres>25?8:10; score+=st*0.2; factors+=0.2 }
+  // Load faktor
+  if (workouts && workouts.length > 0) {
+    const { razmerje } = izracunajLoad(workouts)
+    if (razmerje !== null) {
+      const l = razmerje <= 0.8 ? 8 : razmerje <= 1.3 ? 10 : razmerje <= 1.5 ? 6 : 3
+      score += l * 0.15; factors += 0.15
+    }
+  }
   if (factors===0) return null
   return Math.round((score/factors)*10)/10
 }
@@ -60,6 +68,7 @@ function formaLabel(s) { if(!s)return'—'; if(s>=8)return'Odlično'; if(s>=6)re
 
 // Pripravljenost na naslednji tek (0-100%)
 function izracunajPripravljenost(metrike, prehrana, workouts) {
+  const { atl, ctl, razmerje } = izracunajLoad(workouts)
   const z = metrike[0] || {}
   const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana[0] || {}
   
@@ -117,6 +126,14 @@ function izracunajPripravljenost(metrike, prehrana, workouts) {
     else score += 0
   }
   
+  // Load faktor (15%) - ATL/CTL razmerje
+  if (razmerje !== null) {
+    max += 15
+    if (razmerje >= 0.8 && razmerje <= 1.3) score += 15
+    else if (razmerje >= 0.6 && razmerje <= 1.5) score += 10
+    else score += 3
+  }
+
   if (max === 0) return null
   return Math.round((score / max) * 100)
 }
@@ -545,7 +562,7 @@ export default function App() {
   const planTeden = PLAN.find(p=>p.teden===currentTeden)
   const faza = planTeden?.faza||'F1'
   const zadnjeMetrike = metrike[0]||{}
-  const formaScore = izracunajFormo(zadnjeMetrike.hrv, zadnjeMetrike.spanje_h, zadnjeMetrike.stres_povprecje)
+  const formaScore = izracunajFormo(zadnjeMetrike.hrv, zadnjeMetrike.spanje_h, zadnjeMetrike.stres_povprecje, workouts)
   const predikcija = izracunajPredikcijo(workouts, metrike)
 
   return (
@@ -572,6 +589,51 @@ export default function App() {
   )
 }
 
+
+
+// ── LOAD IZRAČUN ─────────────────────────────────────────────────────────────
+function izracunajLoad(workouts) {
+  const danes = new Date()
+  
+  function loadZaDan(datum) {
+    const d = workouts.filter(w => w.datum === datum)
+    return d.reduce((s, w) => {
+      const te = w.aerobni_te || 1
+      const min = w.trajanje_min || 0
+      return s + Math.round(min * te)
+    }, 0)
+  }
+  
+  // ATL - zadnjih 7 dni
+  let atlSum = 0
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(danes - i * 86400000).toISOString().slice(0, 10)
+    atlSum += loadZaDan(d)
+  }
+  const atl = Math.round(atlSum / 7)
+  
+  // CTL - zadnjih 28 dni
+  let ctlSum = 0
+  for (let i = 0; i < 28; i++) {
+    const d = new Date(danes - i * 86400000).toISOString().slice(0, 10)
+    ctlSum += loadZaDan(d)
+  }
+  const ctl = Math.round(ctlSum / 28)
+  
+  // ATL/CTL razmerje
+  const razmerje = ctl > 0 ? Math.round((atl / ctl) * 100) / 100 : null
+  
+  let razmerjeOpis = '—'
+  let razmerjeColor = '#6b7280'
+  if (razmerje !== null) {
+    if (razmerje < 0.8) { razmerjeOpis = 'Premalo treniraš'; razmerjeColor = '#3b82f6' }
+    else if (razmerje <= 1.3) { razmerjeOpis = 'Optimalno'; razmerjeColor = '#22c55e' }
+    else if (razmerje <= 1.5) { razmerjeOpis = 'Visoka obremenitev'; razmerjeColor = '#eab308' }
+    else { razmerjeOpis = 'Nevarnost poškodbe'; razmerjeColor = '#ef4444' }
+  }
+  
+  return { atl, ctl, razmerje, razmerjeOpis, razmerjeColor }
+}
 
 // ── ANALIZA ZADNJEGA TEKA ─────────────────────────────────────────────────
 function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) {
@@ -870,10 +932,17 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
       if (a.deficitVceraj !== null) {
         const barva = a.deficitVceraj < -400 ? '#ef4444' : a.deficitVceraj < -200 ? '#eab308' : '#22c55e'
         const defStr = a.deficitVceraj > 0 ? `+${a.deficitVceraj} kcal suficit` : `${a.deficitVceraj} kcal deficit`
-        const deficit7Str = a.povprecniDeficit7 !== null ? ` V zadnjih ${a.povprecniDeficit7 > 0 ? '+' : ''}${a.povprecniDeficit7} kcal/dan povprečno.` : ''
+        const deficit7Str = a.povprecniDeficit7 !== null ? ` V zadnjih 7 dneh povprečno ${a.povprecniDeficit7 > 0 ? '+' : ''}${a.povprecniDeficit7} kcal/dan.` : ''
+        let defKomentar = ''
+        if (a.deficitVceraj !== null) {
+          if (a.deficitVceraj < -600) defKomentar = ' Velik deficit — mišice in glikogen so bili slabo dopolnjeni.'
+          else if (a.deficitVceraj < -300) defKomentar = ' Zmeren deficit — regeneracija bila omejena.'
+          else if (a.deficitVceraj < 0) defKomentar = ' Blagi deficit — ni kritično.'
+          else defKomentar = ' Suficit — dobro za regeneracijo.'
+        }
         tocke.push({
           barva,
-          tekst: `Kalorije dan prej: ${defStr} (zaužito ${Math.round(a.prehranaVceraj.kalorije_skupaj || 0)} kcal).${deficit7Str}`
+          tekst: `Kalorije dan prej: ${defStr} (zaužito ${Math.round(a.prehranaVceraj.kalorije_skupaj || 0)} kcal).${defKomentar}${deficit7Str}`
         })
       }
 
@@ -953,6 +1022,30 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
         ) : <div className="empty" style={{padding:8}}>Ni dovolj podatkov</div>}
       </div>
     </div>
+
+    {/* Load kartice */}
+    {(() => {
+      const { atl, ctl, razmerje, razmerjeOpis, razmerjeColor } = izracunajLoad(workouts)
+      return (
+        <div className="grid3" style={{marginBottom:16}}>
+          <div className="card">
+            <h3>Akutni Load (7 dni)</h3>
+            <div className="stat-val" style={{color: atl > 200 ? '#ef4444' : atl > 100 ? '#eab308' : '#22c55e'}}>{atl}</div>
+            <div className="stat-sub">kratkoročna utrujenost</div>
+          </div>
+          <div className="card">
+            <h3>Kronični Load (28 dni)</h3>
+            <div className="stat-val" style={{color:'#3b82f6'}}>{ctl}</div>
+            <div className="stat-sub">fitnes baza</div>
+          </div>
+          <div className="card">
+            <h3>ATL/CTL Razmerje</h3>
+            <div className="stat-val" style={{color: razmerjeColor}}>{razmerje !== null ? razmerje.toFixed(2) : '—'}</div>
+            <div className="stat-sub" style={{color: razmerjeColor}}>{razmerjeOpis}</div>
+          </div>
+        </div>
+      )
+    })()}
 
     {/* Kalorije: porabljene vs zaužite */}
     <div className="grid2" style={{marginBottom:16}}>
@@ -1346,6 +1439,33 @@ function TabTreningi({workouts}){
         </ResponsiveContainer>
       </div>
     )}
+    {/* Load kartice */}
+    {(() => {
+      const { atl, ctl, razmerje, razmerjeOpis, razmerjeColor } = izracunajLoad(workouts)
+      return (
+        <div className="grid3" style={{marginBottom:16}}>
+          <div className="card">
+            <h3>Akutni Load — ATL (7 dni)</h3>
+            <div className="stat-val" style={{color: atl > 200 ? '#ef4444' : atl > 100 ? '#eab308' : '#22c55e'}}>{atl}</div>
+            <div className="stat-sub">kratkoročna utrujenost</div>
+            <div style={{fontSize:11,color:'#475569',marginTop:8}}>Visok = utrujen, nizek = spočit</div>
+          </div>
+          <div className="card">
+            <h3>Kronični Load — CTL (28 dni)</h3>
+            <div className="stat-val" style={{color:'#3b82f6'}}>{ctl}</div>
+            <div className="stat-sub">fitnes baza</div>
+            <div style={{fontSize:11,color:'#475569',marginTop:8}}>Višji = boljša fitnes baza</div>
+          </div>
+          <div className="card">
+            <h3>ATL/CTL Razmerje</h3>
+            <div className="stat-val" style={{color: razmerjeColor}}>{razmerje !== null ? razmerje.toFixed(2) : '—'}</div>
+            <div className="stat-sub" style={{color: razmerjeColor}}>{razmerjeOpis}</div>
+            <div style={{fontSize:11,color:'#475569',marginTop:8}}>0.8–1.3 optimalno · &gt;1.5 nevarno</div>
+          </div>
+        </div>
+      )
+    })()}
+
     <div className="card">
       <h3>Vsi treningi ({workouts.length})</h3>
       <div className="workout-list" style={{maxHeight:420,overflowY:'auto'}}>
@@ -1369,7 +1489,7 @@ function TabTelo({metrike}){
   const avgSpanje=metrike.filter(m=>m.spanje_h).slice(0,7).reduce((s,m,_,a)=>s+m.spanje_h/a.length,0)
   const avgHRV=metrike.filter(m=>m.hrv).slice(0,7).reduce((s,m,_,a)=>s+m.hrv/a.length,0)
   const zadnjaTeza=metrike.find(m=>m.teza_kg)?.teza_kg
-  const formaScore=izracunajFormo(z.hrv,z.spanje_h,z.stres_povprecje)
+  const formaScore=izracunajFormo(z.hrv,z.spanje_h,z.stres_povprecje,[])
 
   return(<>
     <div className="grid5">
