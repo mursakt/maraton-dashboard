@@ -1112,49 +1112,106 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
     </div>
 
     {/* Waterfall kalorijski graf - zadnjih 7 dni */}
-    {waterfall7.length > 0 && (
-      <div className="card" style={{marginBottom:16}}>
-        <h3>Kalorijska bilanca — zadnjih 7 dni</h3>
-        <div style={{fontSize:11,color:'#475569',marginBottom:12,fontFamily:'DM Mono'}}>
-          Zaužite · BMR (pasivne) · Aktivne · Deficit/Suficit
-        </div>
-        <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={waterfall7} margin={{top:4,right:4,left:10,bottom:0}}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-            <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={45}/>
-            <Tooltip
-              contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}
-              formatter={(v, name) => {
-                const labels = {zauzite:'Zaužite', bmr:'BMR (pasivne)', aktivne:'Aktivne', deficit:'Bilanca'}
-                return [`${Math.round(v)} kcal`, labels[name]||name]
-              }}
-            />
-            <Legend wrapperStyle={{fontSize:11,color:'#94a3b8'}}/>
-            <Bar dataKey="zauzite" name="Zaužite" fill="#f97316" radius={[3,3,0,0]} opacity={0.9}/>
-            <Bar dataKey="bmr" name="BMR (pasivne)" fill="#3b82f6" radius={[3,3,0,0]} opacity={0.7}/>
-            <Bar dataKey="aktivne" name="Aktivne" fill="#8b5cf6" radius={[3,3,0,0]} opacity={0.7}/>
-            <Line type="monotone" dataKey="deficit" name="Bilanca" stroke={waterfall7.every(d=>d.deficit>=0)?'#22c55e':'#ef4444'} strokeWidth={2} dot={{r:4}} strokeDasharray={waterfall7.some(d=>d.deficit<0)?"0":"0"}
-              dot={(props) => {
-                const {cx,cy,payload} = props
-                return <circle key={cx} cx={cx} cy={cy} r={4} fill={payload.deficit>=0?'#22c55e':'#ef4444'} stroke="none"/>
-              }}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-        <div style={{display:'flex',gap:6,marginTop:12,flexWrap:'wrap'}}>
-          {waterfall7.map((d,i)=>(
-            <div key={i} style={{padding:'6px 10px',borderRadius:6,background:'#0f172a',border:`1px solid ${d.deficit>=0?'#14532d':'#450a0a'}`,fontSize:11,fontFamily:'DM Mono',minWidth:64,textAlign:'center'}}>
-              <div style={{color:'#475569',marginBottom:3}}>{d.datum}</div>
-              <div style={{color:d.deficit>=0?'#22c55e':'#ef4444',fontWeight:600,fontSize:12}}>
-                {d.deficit>=0?'+':''}{d.deficit}
+    {waterfall7.length > 0 && (() => {
+      // Pravi waterfall: vsak dan = zauzite (zeleno) - bmr (rdeče) - aktivne (rdeče) = bilanca
+      // Stolpci: začnejo tam kjer prejšnji konča (kumulativni)
+      const waterfallData = waterfall7.map(d => {
+        // Za vsak dan naredi 3 stolpce: zauzite, -bmr, -aktivne
+        return [
+          { datum: d.datum, label: 'Zaužite', value: d.zauzite, type: 'zauzite' },
+          { datum: d.datum, label: 'BMR', value: -d.bmr, type: 'bmr' },
+          { datum: d.datum, label: 'Aktivne', value: -d.aktivne, type: 'aktivne' },
+        ]
+      }).flat()
+
+      // Izračunaj kumulativne vrednosti za waterfall
+      let running = 0
+      const wfBars = waterfall7.map(d => {
+        const startZauzite = running
+        running += d.zauzite
+        const startBmr = running
+        running -= d.bmr
+        const startAktivne = running
+        running -= d.aktivne
+        const bilanca = d.deficit
+        return {
+          datum: d.datum,
+          // Zaužite: od 0 do zauzite
+          zauziteStart: 0,
+          zauziteVal: d.zauzite,
+          // BMR: od zauzite navzdol
+          bmrStart: d.zauzite - d.bmr,
+          bmrVal: d.bmr,
+          // Aktivne: od (zauzite-bmr) navzdol  
+          aktivneStart: d.zauzite - d.bmr - d.aktivne,
+          aktivneVal: d.aktivne,
+          // Bilanca
+          bilanca: d.deficit,
+          skupajPor: d.skupaj_porabljene,
+          zauzite: d.zauzite,
+        }
+      })
+
+      return (
+        <div className="card" style={{marginBottom:16}}>
+          <h3>Kalorijska bilanca — zadnjih 7 dni</h3>
+          <div style={{fontSize:11,color:'#475569',marginBottom:12,fontFamily:'DM Mono'}}>
+            🟢 Zaužite &nbsp;·&nbsp; 🔵 BMR (pasivne) &nbsp;·&nbsp; 🟣 Aktivne
+          </div>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={wfBars} margin={{top:8,right:8,left:10,bottom:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+              <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={45}/>
+              <Tooltip
+                contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}
+                formatter={(v, name, props) => {
+                  const d = props.payload
+                  if (name === 'bilanca') return [`${v > 0 ? '+' : ''}${Math.round(v)} kcal`, 'Bilanca']
+                  return null
+                }}
+                content={({active, payload, label}) => {
+                  if (!active || !payload?.length) return null
+                  const d = payload[0]?.payload
+                  if (!d) return null
+                  return (
+                    <div style={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,padding:'8px 12px',fontSize:12}}>
+                      <div style={{color:'#94a3b8',marginBottom:6,fontFamily:'DM Mono'}}>{label}</div>
+                      <div style={{color:'#22c55e'}}>Zaužite: {Math.round(d.zauzite)} kcal</div>
+                      <div style={{color:'#3b82f6'}}>BMR: {Math.round(d.bmrVal)} kcal</div>
+                      <div style={{color:'#8b5cf6'}}>Aktivne: {Math.round(d.aktivneVal)} kcal</div>
+                      <div style={{color: d.bilanca >= 0 ? '#22c55e' : '#ef4444', fontWeight:600, marginTop:4, borderTop:'1px solid #1e2433', paddingTop:4}}>
+                        Bilanca: {d.bilanca >= 0 ? '+' : ''}{Math.round(d.bilanca)} kcal
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="zauziteVal" name="Zaužite" stackId="a" fill="#22c55e" radius={[3,3,0,0]} opacity={0.85}/>
+              <Bar dataKey="bmrVal" name="BMR" stackId="b" fill="#3b82f6" radius={[0,0,0,0]} opacity={0.75}/>
+              <Bar dataKey="aktivneVal" name="Aktivne" stackId="b" fill="#8b5cf6" radius={[0,0,3,3]} opacity={0.75}/>
+              <Line type="monotone" dataKey="bilanca" name="Bilanca" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 3"
+                dot={(props) => {
+                  const {cx, cy, payload} = props
+                  return <circle key={cx+cy} cx={cx} cy={cy} r={4} fill={payload.bilanca >= 0 ? '#22c55e' : '#ef4444'} stroke="#0f172a" strokeWidth={2}/>
+                }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+          <div style={{display:'flex',gap:6,marginTop:12,flexWrap:'wrap'}}>
+            {waterfall7.map((d,i)=>(
+              <div key={i} style={{padding:'6px 10px',borderRadius:6,background:'#0f172a',border:`1px solid ${d.deficit>=0?'#14532d':'#450a0a'}`,fontSize:11,fontFamily:'DM Mono',minWidth:64,textAlign:'center'}}>
+                <div style={{color:'#475569',marginBottom:3}}>{d.datum}</div>
+                <div style={{color:d.deficit>=0?'#22c55e':'#ef4444',fontWeight:600,fontSize:12}}>
+                  {d.deficit>=0?'+':''}{d.deficit}
+                </div>
+                <div style={{color:'#334155',fontSize:10,marginTop:2}}>kcal</div>
               </div>
-              <div style={{color:'#334155',fontSize:10,marginTop:2}}>kcal</div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
-    )}
+      )
+    })()}
 
     {/* Kalorijski deficit graf */}
     <div className="card" style={{marginBottom:16}}>
