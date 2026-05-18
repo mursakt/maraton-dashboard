@@ -1214,22 +1214,7 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
     })()}
 
     {/* Kalorijski deficit graf */}
-    <div className="card" style={{marginBottom:16}}>
-      <h3>Zaužite vs porabljene kalorije — zadnjih 14 dni</h3>
-      {deficitData.length > 1 ? (
-        <ResponsiveContainer width="100%" height={200}>
-          <ComposedChart data={deficitData} margin={{top:4,right:4,left:-20,bottom:0}}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-            <XAxis dataKey="datum" {...axisProps}/>
-            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={([dataMin, dataMax]) => [0, Math.ceil(dataMax * 1.2)]}/>
-            <Tooltip {...tooltipProps}/>
-            <Legend wrapperStyle={{fontSize:11,color:'#94a3b8'}}/>
-            <Bar dataKey="zauzite" fill="#f97316" radius={[3,3,0,0]} name="Zaužite"/>
-            <Bar dataKey="porabljene" fill="#3b82f620" radius={[3,3,0,0]} name="Porabljene (est.)" stroke="#3b82f6" strokeWidth={1}/>
-          </ComposedChart>
-        </ResponsiveContainer>
-      ) : <div className="empty">Ni dovolj podatkov</div>}
-    </div>
+
 
     {/* Povprečje 7 dni + linijski grafi */}
     <div className="grid2" style={{marginBottom:16}}>
@@ -1664,7 +1649,7 @@ function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
 }
 
 function TabTelo({metrike, workouts=[]}){
-  const tezaDejansko=metrike.filter(m=>m.teza_kg&&m.datum>='2026-04-20').slice(0,60).reverse()
+  const tezaDejansko=metrike.filter(m=>m.teza_kg).slice(0,60).reverse()
   const tezaGraf=tezaDejansko.map(m=>{
     const p=PLAN.slice().reverse().find(pl=>pl.datum<=m.datum)
     return{datum:m.datum?.slice(5),dejanska:m.teza_kg,plan:p?.ciljnaKg||null}
