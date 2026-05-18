@@ -866,10 +866,10 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
   const vcerajMetrike = metrike.find(m => m.datum === skupniDatum) || {}
   const vcerajWorkout = workouts.filter(w => w.datum === skupniDatum)
   const aktivneKcalTrening = vcerajWorkout.reduce((s, w) => s + (w.kalorije || 0), 0)
-  const pasivneKcal = z.bmr_kcal || 1946 // Garmin BMR ali formula
-  const aktivneKcalGarmin = z.aktivne_kcal || 0
-  const skupajPorabljene = z.skupaj_kcal || (pasivneKcal + aktivneKcalTrening)
-  // Garmin skupaj_kcal ze vkljucuje ves trening - ne sestevaj posebej
+  // Uporabi vcerajMetrike (skupniDatum) - NE z (danes)
+  const pasivneKcal = vcerajMetrike.bmr_kcal || 1946
+  const aktivneKcalGarmin = vcerajMetrike.aktivne_kcal || 0
+  const skupajPorabljene = vcerajMetrike.skupaj_kcal || (pasivneKcal + aktivneKcalTrening)
   const zauziteKcal = vcerajPrehrana.kalorije_skupaj || 0
   const deficit = zauziteKcal - skupajPorabljene // skupaj_kcal ze vkljucuje trening
   
