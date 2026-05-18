@@ -577,8 +577,7 @@ export default function App() {
   const [error, setError] = useState(null)
   const currentTeden = getCurrentTeden()
 
-  useEffect(() => {
-    async function fetchAll() {
+  const fetchAll = React.useCallback(async () => {
       setLoading(true)
       try {
         const [w,m,p,l,pc] = await Promise.all([
@@ -591,9 +590,11 @@ export default function App() {
         if(w.error)throw w.error; if(m.error)throw m.error; if(p.error)throw p.error
         setWorkouts(w.data||[]); setMetrike(m.data||[]); setPrehrana(p.data||[]); setLaps(l.data||[]); setPrehranaCilji(pc.data||[])
       } catch(e){setError(e.message)} finally{setLoading(false)}
-    }
-    fetchAll()
   }, [])
+
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
 
   if(loading) return(<div className="app"><style>{css}</style><div className="loading">Nalagam podatke…</div></div>)
   if(error) return(<div className="app"><style>{css}</style><div className="alert warn">⚠️ Napaka: {error}</div></div>)
