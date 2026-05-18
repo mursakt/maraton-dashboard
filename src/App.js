@@ -567,10 +567,12 @@ function ProgressBar({ value, max, color = '#3b82f6', showPct = false }) {
 
 export default function App() {
   const [tab, setTab] = useState('pregled')
+  React.useEffect(() => { window._setTab = setTab }, [setTab])
   const [workouts, setWorkouts] = useState([])
   const [metrike, setMetrike] = useState([])
   const [prehrana, setPrehrana] = useState([])
   const [laps, setLaps] = useState([])
+  const [prehranaCilji, setPrehranaCilji] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const currentTeden = getCurrentTeden()
@@ -579,14 +581,15 @@ export default function App() {
     async function fetchAll() {
       setLoading(true)
       try {
-        const [w,m,p,l] = await Promise.all([
+        const [w,m,p,l,pc] = await Promise.all([
           supabase.from('workouts').select('*').order('datum',{ascending:false}).limit(100),
           supabase.from('dnevne_metrike').select('*').order('datum',{ascending:false}).limit(120),
           supabase.from('prehrana').select('*').order('datum',{ascending:false}).limit(60),
           supabase.from('laps').select('*').order('datum',{ascending:false}).limit(500),
+          supabase.from('prehrana_cilji').select('*').order('datum',{ascending:false}).limit(60),
         ])
         if(w.error)throw w.error; if(m.error)throw m.error; if(p.error)throw p.error
-        setWorkouts(w.data||[]); setMetrike(m.data||[]); setPrehrana(p.data||[]); setLaps(l.data||[])
+        setWorkouts(w.data||[]); setMetrike(m.data||[]); setPrehrana(p.data||[]); setLaps(l.data||[]); setPrehranaCilji(pc.data||[])
       } catch(e){setError(e.message)} finally{setLoading(false)}
     }
     fetchAll()
@@ -609,16 +612,17 @@ export default function App() {
         <div className="teden-badge">Teden <span>T{String(currentTeden).padStart(2,'0')}</span> · <span style={{color:FAZA_COLOR[faza]}}>{FAZA_LABEL[faza]}</span></div>
       </div>
       <div className="tabs">
-        {['pregled','treningi','telo','prehrana','plan','predikcija'].map(t=>(
+        {['pregled','treningi','telo','prehrana','cilji','plan','predikcija'].map(t=>(
           <button key={t} className={`tab ${tab===t?'active':''}`} onClick={()=>setTab(t)}>
-            {{pregled:'🏠 Pregled',treningi:'🏃 Treningi',telo:'❤️ Telo & HRV',prehrana:'🥗 Prehrana',plan:'📅 Plan',predikcija:'🎯 Predikcija'}[t]}
+            {{pregled:'🏠 Pregled',treningi:'🏃 Treningi',telo:'❤️ Telo & HRV',prehrana:'🥗 Prehrana',cilji:'🎯 Cilji',plan:'📅 Plan',predikcija:'📈 Predikcija'}[t]}
           </button>
         ))}
       </div>
-      {tab==='pregled'&&<TabPregled workouts={workouts} metrike={metrike} prehrana={prehrana} laps={laps} currentTeden={currentTeden} formaScore={formaScore} predikcija={predikcija}/>}
+      {tab==='pregled'&&<TabPregled workouts={workouts} metrike={metrike} prehrana={prehrana} laps={laps} prehranaCilji={prehranaCilji} currentTeden={currentTeden} formaScore={formaScore} predikcija={predikcija}/>}
       {tab==='treningi'&&<TabTreningi workouts={workouts} metrike={metrike} prehrana={prehrana} laps={laps}/>}
       {tab==='telo'&&<TabTelo metrike={metrike} workouts={workouts}/>}
-      {tab==='prehrana'&&<TabPrehrana prehrana={prehrana} workouts={workouts} metrike={metrike}/>}
+      {tab==='prehrana'&&<TabPrehrana prehrana={prehrana} workouts={workouts} metrike={metrike} prehranaCilji={prehranaCilji} onRefresh={fetchAll}/>
+      {tab==='cilji'&&<TabCilji prehranaCilji={prehranaCilji} onRefresh={fetchAll}/>}
       {tab==='plan'&&<TabPlan currentTeden={currentTeden}/>}
       {tab==='predikcija'&&<TabPredikcija predikcija={predikcija} workouts={workouts}/>}
     </div>
@@ -846,7 +850,199 @@ function NaslednjihPetTreningov() {
   )
 }
 
-function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,predikcija}){
+
+// Tipi dni s privzetimi vrednostmi
+const TIPI_DNI = {
+  'Tek': { cilj_kcal: 2600, cilj_belj_g: 162, cilj_oh_g: 270, cilj_masc_g: 97 },
+  'Long run': { cilj_kcal: 3100, cilj_belj_g: 162, cilj_oh_g: 400, cilj_masc_g: 97 },
+  'Gym': { cilj_kcal: 2400, cilj_belj_g: 162, cilj_oh_g: 200, cilj_masc_g: 102 },
+  'Rest': { cilj_kcal: 2200, cilj_belj_g: 162, cilj_oh_g: 170, cilj_masc_g: 108 },
+}
+
+// Vnos tedenskih ciljev
+function VnosCiljev({ prehranaCilji, onRefresh }) {
+  const [teden, setTeden] = React.useState([])
+  const [saving, setSaving] = React.useState(false)
+  const [saved, setSaved] = React.useState(false)
+
+  // Generiraj naslednji teden (pon-ned)
+  React.useEffect(() => {
+    const dni = []
+    const danes = new Date(TODAY)
+    // Pojdi na ponedeljek tega ali naslednjega tedna
+    const pon = new Date(danes)
+    const day = pon.getDay()
+    const diff = day === 0 ? 1 : (day === 1 ? 0 : 8 - day)
+    pon.setDate(pon.getDate() + diff)
+    
+    const danNames = ['Ned','Pon','Tor','Sre','Čet','Pet','Sob']
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(pon)
+      d.setDate(d.getDate() + i)
+      const datumStr = d.toISOString().slice(0, 10)
+      const obstoječi = prehranaCilji.find(c => c.datum === datumStr)
+      dni.push({
+        datum: datumStr,
+        dayName: danNames[d.getDay()],
+        tip: obstoječi?.tip_dneva || '',
+        cilj_kcal: obstoječi?.cilj_kcal || '',
+        cilj_belj_g: obstoječi?.cilj_belj_g || '',
+        cilj_oh_g: obstoječi?.cilj_oh_g || '',
+        cilj_masc_g: obstoječi?.cilj_masc_g || '',
+      })
+    }
+    setTeden(dni)
+  }, [prehranaCilji])
+
+  function handleTip(i, tip) {
+    const novo = [...teden]
+    novo[i] = { ...novo[i], tip, ...(TIPI_DNI[tip] || {}) }
+    setTeden(novo)
+  }
+
+  function handleVal(i, field, val) {
+    const novo = [...teden]
+    novo[i] = { ...novo[i], [field]: val }
+    setTeden(novo)
+  }
+
+  async function shrani() {
+    setSaving(true)
+    try {
+      for (const d of teden) {
+        if (!d.tip && !d.cilj_kcal) continue
+        await supabase.from('prehrana_cilji').upsert({
+          datum: d.datum,
+          tip_dneva: d.tip || null,
+          cilj_kcal: parseInt(d.cilj_kcal) || null,
+          cilj_belj_g: parseInt(d.cilj_belj_g) || null,
+          cilj_oh_g: parseInt(d.cilj_oh_g) || null,
+          cilj_masc_g: parseInt(d.cilj_masc_g) || null,
+        }, { onConflict: 'datum' })
+      }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      if (onRefresh) onRefresh()
+    } catch(e) {
+      console.error(e)
+    }
+    setSaving(false)
+  }
+
+  const inputStyle = {
+    background: '#0f172a', border: '1px solid #1e2433', borderRadius: 4,
+    color: '#e2e8f0', fontSize: 11, fontFamily: 'DM Mono',
+    padding: '3px 6px', width: 60, textAlign: 'right'
+  }
+
+  return (
+    <div className="card" style={{marginBottom: 16}}>
+      <h3>Tedenski cilji prehrane</h3>
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead>
+            <tr style={{borderBottom:'1px solid #1e2433'}}>
+              {['Dan','Tip','Kcal','Belj','OH','Masc'].map(h => (
+                <th key={h} style={{padding:'4px 8px',color:'#475569',fontFamily:'DM Mono',fontSize:10,textAlign:'left',fontWeight:400,textTransform:'uppercase'}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {teden.map((d, i) => (
+              <tr key={d.datum} style={{borderBottom:'1px solid #0f172a'}}>
+                <td style={{padding:'6px 8px',color:'#64748b',fontFamily:'DM Mono',fontSize:11,whiteSpace:'nowrap'}}>
+                  {d.dayName} {d.datum.slice(5)}
+                </td>
+                <td style={{padding:'6px 8px'}}>
+                  <select
+                    value={d.tip}
+                    onChange={e => handleTip(i, e.target.value)}
+                    style={{...inputStyle, width: 90, textAlign: 'left'}}
+                  >
+                    <option value="">—</option>
+                    {Object.keys(TIPI_DNI).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </td>
+                {['cilj_kcal','cilj_belj_g','cilj_oh_g','cilj_masc_g'].map(field => (
+                  <td key={field} style={{padding:'6px 8px'}}>
+                    <input
+                      type="number"
+                      value={d[field]}
+                      onChange={e => handleVal(i, field, e.target.value)}
+                      style={inputStyle}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button
+        onClick={shrani}
+        disabled={saving}
+        style={{marginTop:12,padding:'8px 20px',background:saved?'#052e16':saving?'#1e2433':'#1e3a5f',border:`1px solid ${saved?'#14532d':'#2d4a7a'}`,borderRadius:6,color:saved?'#86efac':'#94a3b8',cursor:'pointer',fontSize:12,fontFamily:'DM Mono'}}
+      >
+        {saved ? '✓ Shranjeno' : saving ? 'Shranjujem...' : 'Shrani cilje'}
+      </button>
+    </div>
+  )
+}
+
+
+
+function TabCilji({ prehranaCilji, onRefresh }) {
+  const jutri = new Date(TODAY)
+  jutri.setDate(jutri.getDate() + 1)
+  const jutriStr = jutri.toISOString().slice(0, 10)
+  const manjkaJutri = !prehranaCilji.find(c => c.datum === jutriStr)
+
+  return (<>
+    {manjkaJutri && (
+      <div className="alert warn" style={{marginBottom:16}}>
+        ⚠️ Manjkajo cilji prehrane za jutri ({jutriStr}) — vnesi jih spodaj.
+      </div>
+    )}
+    {!manjkaJutri && (
+      <div className="alert ok" style={{marginBottom:16,background:'#052e1620',border:'1px solid #14532d',color:'#86efac'}}>
+        ✓ Cilji za jutri ({jutriStr}) so nastavljeni.
+      </div>
+    )}
+    <VnosCiljev prehranaCilji={prehranaCilji} onRefresh={onRefresh}/>
+
+    {/* Pregled vnesenih ciljev */}
+    {prehranaCilji.length > 0 && (
+      <div className="card">
+        <h3>Vneseni cilji</h3>
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead>
+              <tr style={{borderBottom:'1px solid #1e2433'}}>
+                {['Datum','Tip','Kcal','Belj','OH','Masc'].map(h=>(
+                  <th key={h} style={{padding:'4px 8px',color:'#475569',fontFamily:'DM Mono',fontSize:10,textAlign:'left',fontWeight:400,textTransform:'uppercase'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {prehranaCilji.slice(0,14).map((c,i)=>(
+                <tr key={i} style={{borderBottom:'1px solid #0f172a',opacity:c.datum<TODAY_STR?0.5:1}}>
+                  <td style={{padding:'6px 8px',color:'#64748b',fontFamily:'DM Mono',fontSize:11}}>{c.datum}</td>
+                  <td style={{padding:'6px 8px',color:'#94a3b8',fontSize:11}}>{c.tip_dneva||'—'}</td>
+                  <td style={{padding:'6px 8px',color:'#f97316',fontFamily:'DM Mono',fontSize:11}}>{c.cilj_kcal||'—'}</td>
+                  <td style={{padding:'6px 8px',color:'#22c55e',fontFamily:'DM Mono',fontSize:11}}>{c.cilj_belj_g||'—'}g</td>
+                  <td style={{padding:'6px 8px',color:'#3b82f6',fontFamily:'DM Mono',fontSize:11}}>{c.cilj_oh_g||'—'}g</td>
+                  <td style={{padding:'6px 8px',color:'#a78bfa',fontFamily:'DM Mono',fontSize:11}}>{c.cilj_masc_g||'—'}g</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+  </>)
+}
+
+function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],currentTeden,formaScore,predikcija}){
   const planTeden=PLAN.find(p=>p.teden===currentTeden)
   const tedStart=planTeden?new Date(planTeden.datum):new Date()
   const tedEnd=new Date(tedStart);tedEnd.setDate(tedEnd.getDate()+7)
@@ -1004,7 +1200,7 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
   </>)
 }
 
-function TabPrehrana({prehrana, workouts, metrike=[]}){
+function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefresh}){
   // Vedno prikaži včerajšnje podatke
   const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.filter(p => p.kalorije_skupaj > 0)[0] || {}
   
@@ -1089,14 +1285,23 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
   const axisProps = { tick:{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}, interval:'preserveStartEnd' }
   const tooltipProps = { contentStyle:{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12} }
 
+  // Dinamični cilji za vsak datum
+  const getCilji = (datum) => {
+    const c = prehranaCilji.find(p => p.datum === datum)
+    if (c) return { kcal: c.cilj_kcal || CILJI.kcal, belj: c.cilj_belj_g || CILJI.belj, oh: c.cilj_oh_g || CILJI.oh, masc: c.cilj_masc_g || CILJI.masc, tip: c.tip_dneva }
+    return { ...CILJI, tip: null }
+  }
+  const ciljiVceraj = getCilji(prikazDatum)
+  const ciljiDanes = getCilji(TODAY_STR)
+
   return(<>
     {/* Včerajšnji makri */}
     <div className="grid4" style={{marginBottom:16}}>
       {[
-        { title: `Kalorije (${prikazDatum})`, val: vceraj.kalorije_skupaj, cilj: CILJI.kcal, unit: 'kcal', isDiffKcal: true },
-        { title: `Beljakovine (${prikazDatum})`, val: vceraj.beljakovine_g, cilj: CILJI.belj, unit: 'g' },
-        { title: `OH (${prikazDatum})`, val: vceraj.ogljikovi_hidrati_g, cilj: CILJI.oh, unit: 'g' },
-        { title: `Maščobe (${prikazDatum})`, val: vceraj.masc_g, cilj: CILJI.masc, unit: 'g' },
+        { title: `Kalorije (${prikazDatum})`, val: vceraj.kalorije_skupaj, cilj: ciljiVceraj.kcal, unit: 'kcal', isDiffKcal: true },
+        { title: `Beljakovine (${prikazDatum})`, val: vceraj.beljakovine_g, cilj: ciljiVceraj.belj, unit: 'g' },
+        { title: `OH (${prikazDatum})`, val: vceraj.ogljikovi_hidrati_g, cilj: ciljiVceraj.oh, unit: 'g' },
+        { title: `Maščobe (${prikazDatum})`, val: vceraj.masc_g, cilj: ciljiVceraj.masc, unit: 'g' },
       ].map((m,i) => m.val ? (
         <div key={i} className="card">
           <h3>{m.title}</h3>
@@ -1119,10 +1324,10 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
         <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',marginBottom:8,textTransform:'uppercase',letterSpacing:'.5px'}}>Danes ({TODAY_STR})</div>
         <div className="grid4">
           {[
-            { title: `Kalorije (${TODAY_STR})`, val: danesPrehrana.kalorije_skupaj, cilj: CILJI.kcal, unit: 'kcal', isDiffKcal: true },
-            { title: `Beljakovine (${TODAY_STR})`, val: danesPrehrana.beljakovine_g, cilj: CILJI.belj, unit: 'g' },
-            { title: `OH (${TODAY_STR})`, val: danesPrehrana.ogljikovi_hidrati_g, cilj: CILJI.oh, unit: 'g' },
-            { title: `Maščobe (${TODAY_STR})`, val: danesPrehrana.masc_g, cilj: CILJI.masc, unit: 'g' },
+            { title: `Kalorije (${TODAY_STR})`, val: danesPrehrana.kalorije_skupaj, cilj: ciljiDanes.kcal, unit: 'kcal', isDiffKcal: true },
+            { title: `Beljakovine (${TODAY_STR})`, val: danesPrehrana.beljakovine_g, cilj: ciljiDanes.belj, unit: 'g' },
+            { title: `OH (${TODAY_STR})`, val: danesPrehrana.ogljikovi_hidrati_g, cilj: ciljiDanes.oh, unit: 'g' },
+            { title: `Maščobe (${TODAY_STR})`, val: danesPrehrana.masc_g, cilj: ciljiDanes.masc, unit: 'g' },
           ].map((m,i) => (
             <div key={i} className="card" style={{border:'1px solid #1e3a5f'}}>
               <h3>{m.title}</h3>
@@ -1703,7 +1908,16 @@ function TabTelo({metrike, workouts=[]}){
   const avgKoraki7 = Math.round(metrike.filter(m=>m.koraki).slice(0,7).reduce((s,m,_,a)=>s+m.koraki/a.length,0))
   const bbNet = (zadnjiBB.body_battery_charged||0) - (zadnjiBB.body_battery_drained||0)
 
+  // Opozorilo če manjkajo cilji za jutri
+  const jutriStr2 = (() => { const j = new Date(TODAY); j.setDate(j.getDate()+1); return j.toISOString().slice(0,10) })()
+  const manjkaJutriCilji = !prehranaCilji.find(c => c.datum === jutriStr2)
+
   return(<>
+    {manjkaJutriCilji && (
+      <div className="alert warn" style={{marginBottom:12,cursor:'pointer'}} onClick={()=>window._setTab&&window._setTab('cilji')}>
+        ⚠️ Manjkajo cilji prehrane za jutri ({jutriStr2}) — <span style={{textDecoration:'underline'}}>vnesi jih</span>
+      </div>
+    )}
     <div className="grid5">
       <div className="card">
         <h3>Teža <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({metrike.find(m=>m.teza_kg)?.datum||'—'})</span></h3>
