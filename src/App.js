@@ -1015,7 +1015,7 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
   const avgKcal = z7.reduce((s,p,_,a) => s + p.kalorije_skupaj/a.length, 0) || 0
   const avgBelj = z7.reduce((s,p,_,a) => s + p.beljakovine_g/a.length, 0) || 0
   const avgOH = z7.reduce((s,p,_,a) => s + p.ogljikovi_hidrati_g/a.length, 0) || 0
-  const avgMasc = z7.reduce((s,p,_,a) => s + p.mascobe_g/a.length, 0) || 0
+  const avgMasc = z7.reduce((s,p,_,a) => s + p.masc_g/a.length, 0) || 0
 
   // Grafi za zadnjih 14 dni
   const graf14 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).slice(0, 14).reverse()
@@ -1039,7 +1039,7 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
   const kcalData = graf14.map(p => ({ datum: p.datum?.slice(5), kcal: p.kalorije_skupaj, cilj: CILJI.kcal }))
   const beljData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.beljakovine_g, cilj: CILJI.belj }))
   const ohData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.ogljikovi_hidrati_g, cilj: CILJI.oh }))
-  const mascData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.mascobe_g, cilj: CILJI.masc }))
+  const mascData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p.masc_g, cilj: CILJI.masc }))
 
   // Kalorijski deficit graf
   const deficitData = graf14.map(p => {
@@ -1095,7 +1095,7 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
         { title: `Kalorije (${prikazDatum})`, val: vceraj.kalorije_skupaj, cilj: CILJI.kcal, unit: 'kcal', isDiffKcal: true },
         { title: `Beljakovine (${prikazDatum})`, val: vceraj.beljakovine_g, cilj: CILJI.belj, unit: 'g' },
         { title: `OH (${prikazDatum})`, val: vceraj.ogljikovi_hidrati_g, cilj: CILJI.oh, unit: 'g' },
-        { title: `Maščobe (${prikazDatum})`, val: vceraj.mascobe_g, cilj: CILJI.masc, unit: 'g' },
+        { title: `Maščobe (${prikazDatum})`, val: vceraj.masc_g, cilj: CILJI.masc, unit: 'g' },
       ].map((m, i) => (
         <div key={i} className="macro-card">
           <h3>{m.title}</h3>
