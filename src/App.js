@@ -1091,7 +1091,7 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
 
   return(<>
     {/* Včerajšnji makri */}
-    <div style={{    <div className="grid4" style={{marginBottom:16}}>
+    <div className="grid4" style={{marginBottom:16}}>
       {[
         { title: `Kalorije (${prikazDatum})`, val: vceraj.kalorije_skupaj, cilj: CILJI.kcal, unit: 'kcal', isDiffKcal: true },
         { title: `Beljakovine (${prikazDatum})`, val: vceraj.beljakovine_g, cilj: CILJI.belj, unit: 'g' },
