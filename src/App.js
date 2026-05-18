@@ -857,13 +857,11 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
   const opozorilo = opozoriloPredTreningom(workouts, prehrana)
   
   // Kalorijski deficit/suficit
-  // Poišči zadnji datum kjer imamo OBA podatka - MFP in Garmin metrike
-  const skupniDatum = (() => {
-    const mfpDatumi = new Set(prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).map(p => p.datum))
-    const metrikeDatumi = new Set(metrike.filter(m => m.datum < TODAY_STR).map(m => m.datum))
-    const skupni = [...mfpDatumi].filter(d => metrikeDatumi.has(d)).sort().reverse()
-    return skupni[0] || YESTERDAY_STR
-  })()
+  // Zadnji datum z MFP podatki (ne danes)
+  const zadnjiMfpDatum = prehrana
+    .filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR)
+    .sort((a,b) => b.datum.localeCompare(a.datum))[0]?.datum || YESTERDAY_STR
+  const skupniDatum = zadnjiMfpDatum
   const vcerajPrehrana = prehrana.find(p => p.datum === skupniDatum) || {}
   const vcerajMetrike = metrike.find(m => m.datum === skupniDatum) || {}
   const vcerajWorkout = workouts.filter(w => w.datum === skupniDatum)
