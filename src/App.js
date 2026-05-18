@@ -1139,11 +1139,7 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
           ))}
         </div>
       </div>
-    )}}
-          {m.val && <ProgressBar value={m.val} max={m.cilj} color={diffColor(m.val, m.cilj)} showPct={true}/>}
-        </div>
-      ))}
-    </div>
+    )}
 
     {/* Waterfall kalorijski graf - zadnjih 7 dni */}
     {waterfall7.length > 0 && (() => {
