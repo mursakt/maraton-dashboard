@@ -1287,9 +1287,13 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
   const tooltipProps = { contentStyle:{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12} }
 
   // Dinamični cilji za vsak datum
+  // Najprej poglej prehrana tabelo (tam so cilji shranjeni skupaj z vnosom)
+  // Potem prehrana_cilji (za prihodnje dni)
   const getCilji = (datum) => {
-    const c = prehranaCilji.find(p => p.datum === datum)
-    if (c) return { kcal: c.cilj_kcal || CILJI.kcal, belj: c.cilj_belj_g || CILJI.belj, oh: c.cilj_oh_g || CILJI.oh, masc: c.cilj_masc_g || CILJI.masc, tip: c.tip_dneva }
+    const p = prehrana.find(p2 => p2.datum === datum)
+    if (p && p.cilj_kcal) return { kcal: p.cilj_kcal, belj: p.cilj_belj_g || CILJI.belj, oh: p.cilj_oh_g || CILJI.oh, masc: p.cilj_masc_g || CILJI.masc, tip: p.tip_dneva }
+    const c = prehranaCilji.find(pc => pc.datum === datum)
+    if (c && c.cilj_kcal) return { kcal: c.cilj_kcal, belj: c.cilj_belj_g || CILJI.belj, oh: c.cilj_oh_g || CILJI.oh, masc: c.cilj_masc_g || CILJI.masc, tip: c.tip_dneva }
     return { ...CILJI, tip: null }
   }
   const ciljiVceraj = getCilji(prikazDatum)
@@ -1315,6 +1319,7 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
             : <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`}g ({Math.round(m.val/m.cilj*100)}%)</div>
           }
           <ProgressBar value={m.val} max={m.cilj} color={diffColor(m.val,m.cilj)} showPct={true}/>
+          <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginTop:4}}>cilj: {Math.round(m.cilj)} {m.unit}</div>
         </div>
       ) : null)}
     </div>
@@ -1341,6 +1346,7 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
                 : <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`}g ({Math.round(m.val/m.cilj*100)}%)</div>
               }
               <ProgressBar value={m.val} max={m.cilj} color={diffColor(m.val,m.cilj)} showPct={true}/>
+              <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginTop:4}}>cilj: {Math.round(m.cilj)} {m.unit}{ciljiDanes.tip ? ` · ${ciljiDanes.tip}` : ''}</div>
             </div>
           ))}
         </div>
