@@ -959,7 +959,7 @@ function TabPregled({workouts,metrike,prehrana,laps,currentTeden,formaScore,pred
             <div style={{fontSize:11,color:'#64748b',marginBottom:4,textTransform:'uppercase',letterSpacing:'.5px'}}>Porabljene</div>
             <div style={{fontSize:24,fontFamily:'DM Mono',fontWeight:300}}>{skupajPorabljene} <span style={{fontSize:12,color:'#64748b'}}>kcal</span></div>
             <div style={{fontSize:11,color:'#475569',marginTop:4}}>
-              {z.bmr_kcal ? `${z.bmr_kcal} bazal + ${z.aktivne_kcal||0} aktivne` : `~${pasivneKcal} bazal + ${aktivneKcalTrening} trening`}
+              {vcerajMetrike.bmr_kcal ? `${vcerajMetrike.bmr_kcal} bazal + ${vcerajMetrike.aktivne_kcal||0} aktivne` : `~${pasivneKcal} bazal + ${aktivneKcalTrening} trening`}
             </div>
           </div>
           <div style={{fontSize:20,color:'#2d3748',alignSelf:'center'}}>vs</div>
@@ -1675,8 +1675,14 @@ function TabTelo({metrike, workouts=[]}){
 
   return(<>
     <div className="grid5">
-      <StatCard title="Teža (zadnja)" value={zadnjaTeza?fmt(zadnjaTeza):'—'} unit="kg"/>
-      <StatCard title="HRV (zadnji)" value={z.hrv?fmt(z.hrv,0):'—'} unit="ms" color={z.hrv>50?'#22c55e':z.hrv>35?'#eab308':'#ef4444'}/>
+      <div className="card">
+        <h3>Teža <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({metrike.find(m=>m.teza_kg)?.datum||'—'})</span></h3>
+        <div><span className="stat-val">{zadnjaTeza?fmt(zadnjaTeza):'—'}</span><span className="stat-unit">kg</span></div>
+      </div>
+      <div className="card">
+        <h3>HRV <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({metrike.find(m=>m.hrv)?.datum||'—'})</span></h3>
+        <div><span className="stat-val" style={{color:z.hrv>50?'#22c55e':z.hrv>35?'#eab308':'#ef4444'}}>{z.hrv?fmt(z.hrv,0):'—'}</span><span className="stat-unit">ms</span></div>
+      </div>
       <StatCard title="Spanje povp. 7d" value={avgSpanje?fmt(avgSpanje):'—'} unit="h" color={avgSpanje>=7.5?'#22c55e':avgSpanje>=6.5?'#eab308':'#ef4444'}/>
       <StatCard title="HRV povp. 7d" value={avgHRV?fmt(avgHRV,0):'—'} unit="ms" color={avgHRV>50?'#22c55e':avgHRV>35?'#eab308':'#ef4444'}/>
       <div className="card"><h3>Forma danes</h3><div><span className="stat-val" style={{color:formaColor(formaScore)}}>{formaScore?fmt(formaScore):'—'}</span></div><div className="stat-sub" style={{color:formaColor(formaScore)}}>{formaLabel(formaScore)}</div></div>
