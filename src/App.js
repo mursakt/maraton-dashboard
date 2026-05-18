@@ -1300,31 +1300,7 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
   const ciljiDanes = getCilji(TODAY_STR)
 
   return(<>
-    {/* Včerajšnji makri */}
-    <div className="grid4" style={{marginBottom:16}}>
-      {[
-        { title: `Kalorije (${prikazDatum})`, val: vceraj.kalorije_skupaj, cilj: ciljiVceraj.kcal, unit: 'kcal', isDiffKcal: true },
-        { title: `Beljakovine (${prikazDatum})`, val: vceraj.beljakovine_g, cilj: ciljiVceraj.belj, unit: 'g' },
-        { title: `OH (${prikazDatum})`, val: vceraj.ogljikovi_hidrati_g, cilj: ciljiVceraj.oh, unit: 'g' },
-        { title: `Maščobe (${prikazDatum})`, val: vceraj.masc_g, cilj: ciljiVceraj.masc, unit: 'g' },
-      ].map((m,i) => m.val ? (
-        <div key={i} className="card">
-          <h3>{m.title}</h3>
-          <div style={{display:'flex',alignItems:'baseline',gap:4}}>
-            <span className="stat-val" style={{color:diffColor(m.val,m.cilj)}}>{Math.round(m.val)}</span>
-            <span className="stat-unit">{m.unit}</span>
-          </div>
-          {m.isDiffKcal
-            ? <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`} kcal ({Math.round(m.val/m.cilj*100)}%)</div>
-            : <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`}g ({Math.round(m.val/m.cilj*100)}%)</div>
-          }
-          <ProgressBar value={m.val} max={m.cilj} color={diffColor(m.val,m.cilj)} showPct={true}/>
-          <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginTop:4}}>cilj: {Math.round(m.cilj)} {m.unit}</div>
-        </div>
-      ) : null)}
-    </div>
-
-    {/* Kartice za danes - samo če imamo MFP podatke za danes */}
+    {/* Današnji makri - samo če imamo podatke */}
     {danesPrehrana && (
       <div style={{marginBottom:16}}>
         <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',marginBottom:8,textTransform:'uppercase',letterSpacing:'.5px'}}>Danes ({TODAY_STR})</div>
@@ -1352,6 +1328,32 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
         </div>
       </div>
     )}
+
+    {/* Včerajšnji makri */}
+    <div className="grid4" style={{marginBottom:16}}>
+      {[
+        { title: `Kalorije (${prikazDatum})`, val: vceraj.kalorije_skupaj, cilj: ciljiVceraj.kcal, unit: 'kcal', isDiffKcal: true },
+        { title: `Beljakovine (${prikazDatum})`, val: vceraj.beljakovine_g, cilj: ciljiVceraj.belj, unit: 'g' },
+        { title: `OH (${prikazDatum})`, val: vceraj.ogljikovi_hidrati_g, cilj: ciljiVceraj.oh, unit: 'g' },
+        { title: `Maščobe (${prikazDatum})`, val: vceraj.masc_g, cilj: ciljiVceraj.masc, unit: 'g' },
+      ].map((m,i) => m.val ? (
+        <div key={i} className="card">
+          <h3>{m.title}</h3>
+          <div style={{display:'flex',alignItems:'baseline',gap:4}}>
+            <span className="stat-val" style={{color:diffColor(m.val,m.cilj)}}>{Math.round(m.val)}</span>
+            <span className="stat-unit">{m.unit}</span>
+          </div>
+          {m.isDiffKcal
+            ? <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`} kcal ({Math.round(m.val/m.cilj*100)}%)</div>
+            : <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`}g ({Math.round(m.val/m.cilj*100)}%)</div>
+          }
+          <ProgressBar value={m.val} max={m.cilj} color={diffColor(m.val,m.cilj)} showPct={true}/>
+          <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginTop:4}}>cilj: {Math.round(m.cilj)} {m.unit}</div>
+        </div>
+      ) : null)}
+    </div>
+
+
 
     {/* Waterfall kalorijski graf - zadnjih 7 dni */}
     {waterfall7.length > 0 && (() => {
@@ -1915,16 +1917,7 @@ function TabTelo({metrike, workouts=[]}){
   const avgKoraki7 = Math.round(metrike.filter(m=>m.koraki).slice(0,7).reduce((s,m,_,a)=>s+m.koraki/a.length,0))
   const bbNet = (zadnjiBB.body_battery_charged||0) - (zadnjiBB.body_battery_drained||0)
 
-  // Opozorilo če manjkajo cilji za jutri
-  const jutriStr2 = (() => { const j = new Date(TODAY); j.setDate(j.getDate()+1); return j.toISOString().slice(0,10) })()
-  const manjkaJutriCilji = !prehranaCilji.find(c => c.datum === jutriStr2)
-
   return(<>
-    {manjkaJutriCilji && (
-      <div className="alert warn" style={{marginBottom:12,cursor:'pointer'}} onClick={()=>window._setTab&&window._setTab('cilji')}>
-        ⚠️ Manjkajo cilji prehrane za jutri ({jutriStr2}) — <span style={{textDecoration:'underline'}}>vnesi jih</span>
-      </div>
-    )}
     <div className="grid5">
       <div className="card">
         <h3>Teža <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({metrike.find(m=>m.teza_kg)?.datum||'—'})</span></h3>
