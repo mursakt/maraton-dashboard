@@ -1009,6 +1009,8 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
   const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.filter(p => p.kalorije_skupaj > 0)[0] || {}
   
   const prikazDatum = vceraj.datum || YESTERDAY_STR
+  // Danes - samo če imamo MFP vnos za TODAY_STR
+  const danesPrehrana = prehrana.find(p => p.datum === TODAY_STR && p.kalorije_skupaj > 0) || null
   
   // Povprečje 7 dni (samo dnevi z vnosi)
   const z7 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 7)
@@ -1089,23 +1091,55 @@ function TabPrehrana({prehrana, workouts, metrike=[]}){
 
   return(<>
     {/* Včerajšnji makri */}
-    <div style={{marginBottom:8,fontSize:12,color:'#475569',fontFamily:'DM Mono'}}>Prikazujem podatke za: <span style={{color:'#94a3b8'}}>{prikazDatum}</span></div>
-    <div className="grid4" style={{marginBottom:16}}>
+    <div style={{    <div className="grid4" style={{marginBottom:16}}>
       {[
         { title: `Kalorije (${prikazDatum})`, val: vceraj.kalorije_skupaj, cilj: CILJI.kcal, unit: 'kcal', isDiffKcal: true },
         { title: `Beljakovine (${prikazDatum})`, val: vceraj.beljakovine_g, cilj: CILJI.belj, unit: 'g' },
         { title: `OH (${prikazDatum})`, val: vceraj.ogljikovi_hidrati_g, cilj: CILJI.oh, unit: 'g' },
         { title: `Maščobe (${prikazDatum})`, val: vceraj.masc_g, cilj: CILJI.masc, unit: 'g' },
-      ].map((m, i) => (
-        <div key={i} className="macro-card">
+      ].map((m,i) => m.val ? (
+        <div key={i} className="card">
           <h3>{m.title}</h3>
-          <div className="macro-val" style={{color: m.val ? diffColor(m.val, m.cilj) : '#475569'}}>
-            {m.val ? fmt(m.val, 0) : '—'}<span style={{fontSize:13,color:'#64748b',marginLeft:4}}>{m.unit}</span>
+          <div style={{display:'flex',alignItems:'baseline',gap:4}}>
+            <span className="stat-val" style={{color:diffColor(m.val,m.cilj)}}>{Math.round(m.val)}</span>
+            <span className="stat-unit">{m.unit}</span>
           </div>
-          <div className="macro-cilj">cilj: {m.cilj}{m.unit}</div>
-          {m.val && <div className="macro-diff" style={{color: diffColor(m.val, m.cilj)}}>
-            {m.isDiffKcal ? diffStrKcal(m.val, m.cilj) : diffStr(m.val, m.cilj)}
-          </div>}
+          {m.isDiffKcal
+            ? <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`} kcal ({Math.round(m.val/m.cilj*100)}%)</div>
+            : <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`}g ({Math.round(m.val/m.cilj*100)}%)</div>
+          }
+          <ProgressBar value={m.val} max={m.cilj} color={diffColor(m.val,m.cilj)} showPct={true}/>
+        </div>
+      ) : null)}
+    </div>
+
+    {/* Kartice za danes - samo če imamo MFP podatke za danes */}
+    {danesPrehrana && (
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',marginBottom:8,textTransform:'uppercase',letterSpacing:'.5px'}}>Danes ({TODAY_STR})</div>
+        <div className="grid4">
+          {[
+            { title: `Kalorije (${TODAY_STR})`, val: danesPrehrana.kalorije_skupaj, cilj: CILJI.kcal, unit: 'kcal', isDiffKcal: true },
+            { title: `Beljakovine (${TODAY_STR})`, val: danesPrehrana.beljakovine_g, cilj: CILJI.belj, unit: 'g' },
+            { title: `OH (${TODAY_STR})`, val: danesPrehrana.ogljikovi_hidrati_g, cilj: CILJI.oh, unit: 'g' },
+            { title: `Maščobe (${TODAY_STR})`, val: danesPrehrana.masc_g, cilj: CILJI.masc, unit: 'g' },
+          ].map((m,i) => (
+            <div key={i} className="card" style={{border:'1px solid #1e3a5f'}}>
+              <h3>{m.title}</h3>
+              <div style={{display:'flex',alignItems:'baseline',gap:4}}>
+                <span className="stat-val" style={{color:diffColor(m.val,m.cilj)}}>{Math.round(m.val)}</span>
+                <span className="stat-unit">{m.unit}</span>
+              </div>
+              {m.isDiffKcal
+                ? <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`} kcal ({Math.round(m.val/m.cilj*100)}%)</div>
+                : <div className="stat-sub" style={{color:diffColor(m.val,m.cilj)}}>{m.val>m.cilj?`+${Math.round(m.val-m.cilj)}`:`${Math.round(m.val-m.cilj)}`}g ({Math.round(m.val/m.cilj*100)}%)</div>
+              }
+              <ProgressBar value={m.val} max={m.cilj} color={diffColor(m.val,m.cilj)} showPct={true}/>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}}
           {m.val && <ProgressBar value={m.val} max={m.cilj} color={diffColor(m.val, m.cilj)} showPct={true}/>}
         </div>
       ))}
