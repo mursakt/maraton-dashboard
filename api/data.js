@@ -17,14 +17,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [workouts, metrike, prehrana, laps] = await Promise.all([
+    const [workouts, metrike, prehrana, laps, prehranaCilji] = await Promise.all([
       fetchTable('workouts', 'select=*&order=datum.desc&limit=30'),
-      fetchTable('dnevne_metrike', 'select=*&order=datum.desc&limit=30'),
-      fetchTable('prehrana', 'select=*&order=datum.desc&limit=14'),
-      fetchTable('laps', 'select=*&order=datum.desc&limit=200'),
+      fetchTable('dnevne_metrike', 'select=*&order=datum.desc&limit=60'),
+      fetchTable('prehrana', 'select=*&order=datum.desc&limit=30'),
+      fetchTable('laps', 'select=*&order=datum.desc&limit=500'),
+      fetchTable('prehrana_cilji', 'select=*&order=datum.desc&limit=30'),
     ])
 
-    res.status(200).json({ workouts, metrike, prehrana, laps })
+    res.status(200).json({ workouts, metrike, prehrana, laps, prehranaCilji })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
