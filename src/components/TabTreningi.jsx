@@ -5,6 +5,7 @@ import { izracunajLoad, analizirajTek } from '../utils/calculations'
 import { isTek, fmt, hrZona, hrZonaColor } from '../utils/helpers'
 import { StatCard } from './StatCard'
 import { NaslednjihPetTreningov } from './NaslednjihPetTreningov'
+import { AnalizaTeka } from './AnalizaTeka'
 
 export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
   const teki=workouts.filter(w=>isTek(w)&&w.razdalja_km>0)
@@ -192,8 +193,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
       )
     })()}
 
-
-
+    <AnalizaTeka workouts={workouts} metrike={metrike} prehrana={prehrana}/>
 
     <div className="card" style={{marginBottom:16}}>
       <h3>Km po tednih (samo teki)</h3>
