@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend, ComposedChart } from 'recharts'
+import './App.css'
+import { StatCard } from './components/StatCard'
+import { ProgressBar } from './components/ProgressBar'
 
 const PLAN = [
   { teden: 1,  datum: '2026-04-20', faza: 'F1', km: 11,  ciljnaKg: 97.0 },
@@ -454,116 +457,6 @@ function opozoriloPredTreningom(workouts, prehrana) {
   return null
 }
 
-const css = `
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0a0a0f;color:#e2e8f0;font-family:'DM Sans',sans-serif}
-  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#111}::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
-  .app{min-height:100vh;padding:24px;max-width:1200px;margin:0 auto}
-  .header{display:flex;align-items:baseline;gap:16px;margin-bottom:32px;border-bottom:1px solid #1e2433;padding-bottom:20px;flex-wrap:wrap}
-  .header h1{font-size:22px;font-weight:600;letter-spacing:-.5px}
-  .header .sub{font-size:13px;color:#64748b;font-family:'DM Mono',monospace}
-  .header .teden-badge{margin-left:auto;background:#1e2433;border:1px solid #2d3748;border-radius:8px;padding:6px 14px;font-family:'DM Mono',monospace;font-size:12px;color:#94a3b8}
-  .header .teden-badge span{color:#e2e8f0;font-weight:500}
-  .tabs{display:flex;gap:4px;margin-bottom:24px;background:#111827;border-radius:10px;padding:4px;width:fit-content;flex-wrap:wrap}
-  .tab{padding:8px 18px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#64748b;transition:all .15s}
-  .tab.active{background:#1e2433;color:#e2e8f0}
-  .tab:hover:not(.active){color:#94a3b8}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
-  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px}
-  .grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:16px}
-  .card{background:#111827;border:1px solid #1e2433;border-radius:12px;padding:20px}
-  .card h3{font-size:11px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px}
-  .stat-val{font-size:32px;font-weight:300;font-family:'DM Mono',monospace;letter-spacing:-1px}
-  .stat-unit{font-size:14px;color:#64748b;margin-left:4px}
-  .stat-sub{font-size:12px;color:#475569;margin-top:4px;font-family:'DM Mono',monospace}
-  .progress-bar{height:6px;background:#1e2433;border-radius:3px;overflow:hidden;margin:8px 0}
-  .progress-fill{height:100%;border-radius:3px;transition:width .5s ease}
-  .workout-list{display:flex;flex-direction:column;gap:8px}
-  .workout-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:#0f172a;border-radius:8px;border:1px solid #1e2433;flex-wrap:wrap}
-  .workout-item .date{font-family:'DM Mono',monospace;font-size:11px;color:#475569;min-width:52px}
-  .workout-item .type{font-size:12px;font-weight:500;color:#94a3b8;min-width:90px}
-  .workout-item .detail{font-family:'DM Mono',monospace;font-size:12px;color:#64748b}
-  .workout-item .hr-badge{margin-left:auto;font-family:'DM Mono',monospace;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:500}
-  .alert{display:flex;gap:10px;padding:12px 14px;border-radius:8px;font-size:13px;margin-bottom:10px}
-  .alert.warn{background:#451a03;border:1px solid #78350f;color:#fcd34d}
-  .alert.ok{background:#052e16;border:1px solid #14532d;color:#86efac}
-  .alert.info{background:#0c1a2e;border:1px solid #1e3a5f;color:#7dd3fc}
-  .alert.opozorilo{background:#3b0764;border:1px solid #6b21a8;color:#e879f9}
-  .plan-row{display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:8px;background:#0f172a;border:1px solid #1e2433;margin-bottom:6px;font-size:13px}
-  .plan-row.current{border-color:#3b82f6;background:#0f1f3d}
-  .plan-row .t-num{font-family:'DM Mono',monospace;font-size:11px;color:#475569;min-width:28px}
-  .plan-row .t-datum{font-family:'DM Mono',monospace;font-size:11px;color:#475569;min-width:90px}
-  .plan-row .t-faza{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;min-width:50px;text-align:center}
-  .plan-row .t-km{font-family:'DM Mono',monospace;font-size:12px;color:#94a3b8;margin-left:auto}
-  .plan-row .t-kg{font-family:'DM Mono',monospace;font-size:11px;color:#475569;min-width:60px;text-align:right}
-  .empty{text-align:center;padding:40px;color:#475569;font-size:13px}
-  .loading{display:flex;align-items:center;justify-content:center;height:200px;color:#475569;font-family:'DM Mono',monospace;font-size:13px}
-  .nutrition-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1e2433}
-  .nutrition-row:last-child{border-bottom:none}
-  .nutrition-label{font-size:13px;color:#94a3b8}
-  .nutrition-val{font-family:'DM Mono',monospace;font-size:13px}
-  .nutrition-target{font-family:'DM Mono',monospace;font-size:11px;color:#475569}
-  .forma-ring{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
-  .forma-score{font-size:48px;font-weight:200;font-family:'DM Mono',monospace;letter-spacing:-2px;line-height:1}
-  .forma-label{font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.8px}
-  .forma-sub{font-size:11px;color:#475569;font-family:'DM Mono',monospace}
-  .pred-main{font-size:64px;font-weight:200;font-family:'DM Mono',monospace;letter-spacing:-3px;line-height:1}
-  .pred-cilj{font-size:13px;color:#475569;font-family:'DM Mono',monospace;margin-top:4px}
-  .pred-diff-pos{color:#22c55e;font-family:'DM Mono',monospace;font-size:14px;font-weight:500}
-  .pred-diff-neg{color:#ef4444;font-family:'DM Mono',monospace;font-size:14px;font-weight:500}
-  .zanesljivost-bar{height:8px;background:#1e2433;border-radius:4px;overflow:hidden;margin:8px 0}
-  .zanesljivost-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#3b82f6,#22c55e)}
-  .faktor-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #1e2433;font-size:13px}
-  .faktor-row:last-child{border-bottom:none}
-  .faktor-label{color:#94a3b8}
-  .faktor-val{font-family:'DM Mono',monospace}
-  .razlog-item{font-size:12px;color:#64748b;padding:3px 0;font-family:'DM Mono',monospace}
-  .analiza-item{display:flex;gap:8px;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:6px;align-items:flex-start}
-  .analiza-item.ok{background:#052e1620;border-left:3px solid #22c55e;color:#86efac}
-  .analiza-item.warn{background:#45180320;border-left:3px solid #f97316;color:#fcd34d}
-  .analiza-item.info{background:#0c1a2e20;border-left:3px solid #3b82f6;color:#7dd3fc}
-  .big-ring{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px 0}
-  .big-ring-val{font-size:52px;font-weight:200;font-family:'DM Mono',monospace;letter-spacing:-2px;line-height:1}
-  .big-ring-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
-  .big-ring-sub{font-size:11px;color:#475569}
-  .macro-card{background:#111827;border:1px solid #1e2433;border-radius:12px;padding:16px}
-  .macro-card h3{font-size:11px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
-  .macro-val{font-size:28px;font-weight:300;font-family:'DM Mono',monospace}
-  .macro-cilj{font-size:11px;color:#475569;margin-top:2px}
-  .macro-diff{font-size:12px;font-family:'DM Mono',monospace;margin-top:4px;font-weight:500}
-  @media(max-width:768px){.grid2,.grid3,.grid4,.grid5{grid-template-columns:1fr}.app{padding:16px}.tabs{flex-wrap:wrap}.pred-main{font-size:48px}}
-`
-
-function StatCard({ title, value, unit, sub, color }) {
-  return (
-    <div className="card">
-      <h3>{title}</h3>
-      <div><span className="stat-val" style={color?{color}:{}}>{value}</span>{unit&&<span className="stat-unit">{unit}</span>}</div>
-      {sub&&<div className="stat-sub">{sub}</div>}
-    </div>
-  )
-}
-function ProgressBar({ value, max, color = '#3b82f6', showPct = false }) {
-  const rawPct = Math.round((value / max) * 100)
-  const over = rawPct > 100
-  const extraPct = over ? Math.min(rawPct - 100, 50) : 0
-  return (
-    <div>
-      <div style={{height:6,background:'#1e2433',borderRadius:3,overflow:'hidden',margin:'8px 0',position:'relative',display:'flex'}}>
-        {over ? (
-          <>
-            <div style={{height:'100%',width:'100%',background:color,borderRadius:3,position:'absolute',left:0,top:0}}/>
-            <div style={{height:'100%',width:`${extraPct}%`,background:color,backgroundImage:'repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(0,0,0,0.5) 3px,rgba(0,0,0,0.5) 6px)',borderRadius:'0 3px 3px 0',position:'absolute',right:0,top:0}}/>
-          </>
-        ) : (
-          <div style={{height:'100%',width:`${rawPct}%`,background:color,borderRadius:3,transition:'width 0.5s ease'}}/>
-        )}
-      </div>
-      {showPct && <div style={{fontSize:11,color:rawPct>=100?color:'#64748b',fontFamily:'DM Mono',textAlign:'right',marginTop:-4}}>{rawPct}%</div>}
-    </div>
-  )
-}
 
 export default function App() {
   const [tab, setTab] = useState('pregled')
@@ -596,8 +489,8 @@ export default function App() {
     fetchAll()
   }, [fetchAll])
 
-  if(loading) return(<div className="app"><style>{css}</style><div className="loading">Nalagam podatke…</div></div>)
-  if(error) return(<div className="app"><style>{css}</style><div className="alert warn">⚠️ Napaka: {error}</div></div>)
+  if(loading) return(<div className="app"><div className="loading">Nalagam podatke…</div></div>)
+  if(error) return(<div className="app"><div className="alert warn">⚠️ Napaka: {error}</div></div>)
 
   const planTeden = PLAN.find(p=>p.teden===currentTeden)
   const faza = planTeden?.faza||'F1'
@@ -606,7 +499,7 @@ export default function App() {
   const predikcija = izracunajPredikcijo(workouts, metrike)
 
   return (
-    <div className="app"><style>{css}</style>
+    <div className="app">
       <div className="header">
         <h1>Fitness Tracker TM</h1>
         <div style={{fontSize:10,color:'#2d3748',fontFamily:'DM Mono',marginTop:2,userSelect:'all'}}>https://maraton-dashboard.vercel.app/api/data</div>
