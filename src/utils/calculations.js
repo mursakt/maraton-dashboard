@@ -152,6 +152,22 @@ export function opozoriloPredTreningom(workouts, prehrana) {
   return null
 }
 
+export function izracunajFormo(hrv, spanje, stres, workouts) {
+  let score = 0; let factors = 0
+  if (hrv) { const h = hrv<30?1:hrv<40?3:hrv<50?5:hrv<60?7:hrv<70?8:10; score+=h*0.35; factors+=0.35 }
+  if (spanje) { const s = spanje<5?1:spanje<6?3:spanje<6.5?5:spanje<7?6:spanje<7.5?7.5:spanje<8?9:10; score+=s*0.3; factors+=0.3 }
+  if (stres) { const st = stres>75?1:stres>60?3:stres>45?5:stres>35?6:stres>25?8:10; score+=st*0.2; factors+=0.2 }
+  if (workouts && workouts.length > 0) {
+    const { razmerje } = izracunajLoad(workouts)
+    if (razmerje !== null) {
+      const l = razmerje <= 0.8 ? 8 : razmerje <= 1.3 ? 10 : razmerje <= 1.5 ? 6 : 3
+      score += l * 0.15; factors += 0.15
+    }
+  }
+  if (factors===0) return null
+  return Math.round((score/factors)*10)/10
+}
+
 export function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) {
   if (!zadnjiTek) return null
 
