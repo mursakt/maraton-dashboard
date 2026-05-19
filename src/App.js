@@ -4,6 +4,8 @@ import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tool
 import './App.css'
 import { StatCard } from './components/StatCard'
 import { ProgressBar } from './components/ProgressBar'
+import { tempoStrToSec, secToTempoStr, secToHMS } from './utils/tempo'
+import { fmt, hrZona, hrZonaColor, isTek, formaColor, formaLabel, pripravljenostColor, pripravljenostLabel } from './utils/helpers'
 
 const PLAN = [
   { teden: 1,  datum: '2026-04-20', faza: 'F1', km: 11,  ciljnaKg: 97.0 },
@@ -81,10 +83,6 @@ function getCurrentTeden() {
   for (let i = PLAN.length - 1; i >= 0; i--) { if (new Date(PLAN[i].datum) <= TODAY) return PLAN[i].teden }
   return 1
 }
-function fmt(val, dec = 1) { if (val == null || isNaN(val)) return '—'; return Number(val).toFixed(dec) }
-function hrZona(hr) { if (!hr) return '—'; if (hr<123) return 'Z0'; if (hr<138) return 'Z1'; if (hr<154) return 'Z2'; if (hr<169) return 'Z3'; if (hr<185) return 'Z4'; return 'Z5' }
-function hrZonaColor(hr) { if (!hr) return '#6b7280'; if (hr<138) return '#22c55e'; if (hr<154) return '#3b82f6'; if (hr<169) return '#eab308'; if (hr<185) return '#f97316'; return '#ef4444' }
-function isTek(w) { const t=(w.tip_treninga||'').toLowerCase(); return t.includes('run')||t.includes('tek') }
 
 function izracunajFormo(hrv, spanje, stres, workouts) {
   let score = 0; let factors = 0
@@ -102,8 +100,6 @@ function izracunajFormo(hrv, spanje, stres, workouts) {
   if (factors===0) return null
   return Math.round((score/factors)*10)/10
 }
-function formaColor(s) { if(!s)return'#6b7280'; if(s>=8)return'#22c55e'; if(s>=6)return'#84cc16'; if(s>=4)return'#eab308'; if(s>=2)return'#f97316'; return'#ef4444' }
-function formaLabel(s) { if(!s)return'—'; if(s>=8)return'Odlično'; if(s>=6)return'Dobro'; if(s>=4)return'Povprečno'; if(s>=2)return'Slabo'; return'Kritično' }
 
 // Pripravljenost na naslednji tek (0-100%)
 function izracunajPripravljenost(metrike, prehrana, workouts) {
@@ -177,23 +173,6 @@ function izracunajPripravljenost(metrike, prehrana, workouts) {
   return Math.round((score / max) * 100)
 }
 
-function pripravljenostColor(p) {
-  if (!p) return '#6b7280'
-  if (p >= 80) return '#22c55e'
-  if (p >= 60) return '#84cc16'
-  if (p >= 40) return '#eab308'
-  if (p >= 20) return '#f97316'
-  return '#ef4444'
-}
-
-function pripravljenostLabel(p) {
-  if (!p) return '—'
-  if (p >= 80) return 'Odlično pripravljen'
-  if (p >= 60) return 'Dobro pripravljen'
-  if (p >= 40) return 'Zmerno pripravljen'
-  if (p >= 20) return 'Slabo pripravljen'
-  return 'Ni priporočljivo teči'
-}
 
 // AI Analiza zadnjega teka
 function AnalizaTeka({ workouts, metrike, prehrana }) {
@@ -320,26 +299,6 @@ function AnalizaTeka({ workouts, metrike, prehrana }) {
 
 
 
-function tempoStrToSec(tempo) {
-  if (!tempo) return null
-  const parts = tempo.split(':')
-  if (parts.length !== 2) return null
-  return parseInt(parts[0]) * 60 + parseInt(parts[1])
-}
-
-function secToTempoStr(sec) {
-  if (!sec) return '—'
-  const min = Math.floor(sec / 60)
-  const s = Math.round(sec % 60)
-  return `${min}:${s.toString().padStart(2, '0')}`
-}
-
-function secToHMS(totalSec) {
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = Math.round(totalSec % 60)
-  return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-}
 
 function izracunajPredikcijo(workouts, metrike) {
   const teki = workouts.filter(w => isTek(w) && w.razdalja_km > 0 && w.povprecni_hr > 0)
@@ -599,12 +558,6 @@ function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) {
   // Lap analiza
   const lapi = lapsTeka.filter(l => l.garmin_activity_id === zadnjiTek.garmin_activity_id)
     .sort((a, b) => a.lap_number - b.lap_number)
-
-  const tempoStrToSec = t => {
-    if (!t) return null
-    const [m, s] = t.split(':').map(Number)
-    return m * 60 + s
-  }
 
   // Cardiac drift: HR v prvi tretjini vs zadnji tretjini
   let cardiacDrift = null
