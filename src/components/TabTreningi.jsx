@@ -215,7 +215,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                 const current = getOcena(zadnjiTek)
                 const active = current === o.key
                 return (
-                  <button key={o.key} onClick={() => saveOcena(zadnjiTek.id, o.key)} style={{padding:'4px 12px',borderRadius:4,border:`1px solid ${active ? o.color : '#1e2433'}`,background:active ? o.color+'33' : '#0f172a',color:active ? o.color : '#64748b',fontSize:12,cursor:'pointer',fontFamily:'DM Mono'}}>{o.label}</button>
+                  <button key={o.key} onClick={() => saveOcena(zadnjiTek.id, o.key)} style={{padding:'5px 14px',borderRadius:4,border:`1px solid ${active ? o.color : '#334155'}`,background:active ? o.color+'33' : '#1e2d3d',color:active ? o.color : '#94a3b8',fontSize:12,cursor:'pointer',fontFamily:'DM Mono'}}>{o.label}</button>
                 )
               })}
             </div>
