@@ -1,4 +1,5 @@
 import { PLAN, CILJI, TODAY, TODAY_STR, YESTERDAY_STR, getCurrentTeden } from '../constants/plan'
+import { tempoStrToSec } from './tempo'
 
 export function izracunajLoad(workouts) {
   const danes = new Date()
@@ -149,4 +150,137 @@ export function opozoriloPredTreningom(workouts, prehrana) {
     return `🍝 Jutri dolg tek — ${msgs.join(' in ')}`
   }
   return null
+}
+
+export function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) {
+  if (!zadnjiTek) return null
+
+  const tekDatum = zadnjiTek.datum
+  const danPred = new Date(new Date(tekDatum) - 86400000).toISOString().slice(0, 10)
+
+  const metrikeDanPred = metrike.find(m => m.datum === danPred) || {}
+  const prehranaVceraj = prehrana.find(p => p.datum === danPred && p.kalorije_skupaj > 0) || {}
+
+  const workoutVceraj = workouts.filter(w => w.datum === danPred)
+  const treningKcalVceraj = workoutVceraj.reduce((s, w) => s + (w.kalorije || 0), 0)
+  const metVceraj = metrike.find(m => m.datum === danPred) || {}
+  const porabljeneVceraj = metVceraj.skupaj_kcal || (metVceraj.bmr_kcal ? metVceraj.bmr_kcal + treningKcalVceraj : 1946 + treningKcalVceraj)
+  const deficitVceraj = prehranaVceraj.kalorije_skupaj ? Math.round(prehranaVceraj.kalorije_skupaj - porabljeneVceraj) : null
+
+  const zadnjih7Prehrana = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < tekDatum).slice(0, 7)
+  const deficiti7 = zadnjih7Prehrana.map(p => {
+    const w = workouts.filter(w2 => w2.datum === p.datum).reduce((s, w2) => s + (w2.kalorije || 0), 0)
+    const mD = metrike.find(m2 => m2.datum === p.datum) || {}
+    const por = mD.skupaj_kcal || (mD.bmr_kcal ? mD.bmr_kcal + w : 1946 + w)
+    return p.kalorije_skupaj - por
+  })
+  const povprecniDeficit7 = deficiti7.length > 0 ? Math.round(deficiti7.reduce((s, d) => s + d, 0) / deficiti7.length) : null
+
+  const lapi = lapsTeka.filter(l => l.garmin_activity_id === zadnjiTek.garmin_activity_id)
+    .sort((a, b) => a.lap_number - b.lap_number)
+
+  let cardiacDrift = null
+  let driftOpis = null
+  if (lapi.length >= 3) {
+    const tretjina = Math.floor(lapi.length / 3)
+    const prvaHR = lapi.slice(0, tretjina).filter(l => l.povprecni_hr).reduce((s, l, _, a) => s + l.povprecni_hr / a.length, 0)
+    const zadnjaHR = lapi.slice(-tretjina).filter(l => l.povprecni_hr).reduce((s, l, _, a) => s + l.povprecni_hr / a.length, 0)
+    cardiacDrift = Math.round(zadnjaHR - prvaHR)
+    if (cardiacDrift > 20) driftOpis = 'zelo velik'
+    else if (cardiacDrift > 12) driftOpis = 'velik'
+    else if (cardiacDrift > 6) driftOpis = 'zmeren'
+    else driftOpis = 'minimalen'
+  }
+
+  let tempoDegradacija = null
+  let tempoDegOpis = null
+  if (lapi.length >= 6) {
+    const prvi3 = lapi.slice(0, 3).filter(l => l.povprecni_tempo)
+    const zadnji3 = lapi.slice(-3).filter(l => l.povprecni_tempo)
+    if (prvi3.length > 0 && zadnji3.length > 0) {
+      const avgTempoZac = prvi3.reduce((s, l, _, a) => s + tempoStrToSec(l.povprecni_tempo) / a.length, 0)
+      const avgTempoKon = zadnji3.reduce((s, l, _, a) => s + tempoStrToSec(l.povprecni_tempo) / a.length, 0)
+      tempoDegradacija = Math.round(avgTempoKon - avgTempoZac)
+      if (tempoDegradacija > 30) tempoDegOpis = 'velik padec tempa'
+      else if (tempoDegradacija > 15) tempoDegOpis = 'zmeren padec tempa'
+      else if (tempoDegradacija > 5) tempoDegOpis = 'blag padec tempa'
+      else if (tempoDegradacija < -5) tempoDegOpis = 'negativni split'
+      else tempoDegOpis = 'konstanten tempo'
+    }
+  }
+
+  let kriticniKm = null
+  if (lapi.length >= 4) {
+    for (let i = 2; i < lapi.length; i++) {
+      const l = lapi[i]
+      const prej = lapi[i - 1]
+      if (l.povprecni_hr && prej.povprecni_hr && l.povprecni_tempo && prej.povprecni_tempo) {
+        const hrDelta = l.povprecni_hr - prej.povprecni_hr
+        const tempoDelta = tempoStrToSec(l.povprecni_tempo) - tempoStrToSec(prej.povprecni_tempo)
+        if (hrDelta >= 5 && tempoDelta >= -5 && !kriticniKm) {
+          kriticniKm = i + 1
+        }
+      }
+    }
+  }
+
+  const tezaKg = metrike.find(m => m.teza_kg)?.teza_kg || 95
+  const ohDanPrej = prehranaVceraj.ogljikovi_hidrati_g || 0
+  const ohNaKg = ohDanPrej > 0 ? Math.round((ohDanPrej / tezaKg) * 10) / 10 : null
+  let glikogenOpis = null
+  if (ohNaKg !== null) {
+    if (ohNaKg < 2) glikogenOpis = 'kritično nizke rezerve'
+    else if (ohNaKg < 3) glikogenOpis = 'zelo nizke rezerve'
+    else if (ohNaKg < 5) glikogenOpis = 'suboptimalne rezerve'
+    else glikogenOpis = 'dobre rezerve'
+  }
+
+  const hrv = metrikeDanPred.hrv
+  const spanje = metrikeDanPred.spanje_h
+  const stres = metrikeDanPred.stres_povprecje
+
+  const te = zadnjiTek.aerobni_te
+  let teOpis = null
+  if (te >= 5) teOpis = 'prezahtevno — pretreniranost'
+  else if (te >= 4) teOpis = 'threshold — prezahtevno za lahek dan'
+  else if (te >= 3) teOpis = 'aerobno — ok za bazo'
+  else if (te >= 2) teOpis = 'vzdrževano — lahek tek'
+  else teOpis = 'minimalen učinek'
+
+  const prvLap = lapi[0]
+  const optimalniBazniTempo = 400
+  let zacetniTempoOpis = null
+  if (prvLap?.povprecni_tempo) {
+    const prvTempoSec = tempoStrToSec(prvLap.povprecni_tempo)
+    const razlika = optimalniBazniTempo - prvTempoSec
+    if (razlika > 30) zacetniTempoOpis = `${Math.round(razlika)} sek/km prehitro`
+    else if (razlika > 10) zacetniTempoOpis = `${Math.round(razlika)} sek/km prehitro`
+    else if (razlika < -10) zacetniTempoOpis = `${Math.round(Math.abs(razlika))} sek/km počasneje kot optimalno`
+    else zacetniTempoOpis = 'optimalen začetni tempo'
+  }
+
+  return {
+    tek: zadnjiTek,
+    lapi,
+    cardiacDrift,
+    driftOpis,
+    tempoDegradacija,
+    tempoDegOpis,
+    kriticniKm,
+    ohNaKg,
+    glikogenOpis,
+    ohDanPrej: Math.round(ohDanPrej),
+    tezaKg,
+    hrv,
+    spanje,
+    stres,
+    te,
+    teOpis,
+    prvLap,
+    zacetniTempoOpis,
+    deficitVceraj,
+    povprecniDeficit7,
+    prehranaVceraj,
+    metrikeDanPred,
+  }
 }
