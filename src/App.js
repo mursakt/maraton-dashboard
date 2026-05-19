@@ -2182,6 +2182,7 @@ function TabTelo({metrike, workouts=[]}){
       </div>
     )}
     </div>
+  </div>
 
   </>)
 }
