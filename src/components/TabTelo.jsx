@@ -14,6 +14,7 @@ export function TabTelo({metrike, workouts=[]}){
     return{datum:m.datum?.slice(5),dejanska:m.teza_kg,plan:p?.ciljnaKg||null}
   })
   const hrvData=metrike.filter(m=>m.hrv).slice(0,28).reverse().map(m=>({datum:m.datum?.slice(5),hrv:m.hrv}))
+  const hrvMax = hrvData.length > 0 ? Math.max(...hrvData.map(d => d.hrv)) + 5 : 100
   const spanjeData=metrike.filter(m=>m.spanje_h).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),ure:m.spanje_h}))
   const formaData=metrike.slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),forma:izracunajFormo(m.hrv,m.spanje_h,m.stres_povprecje)})).filter(d=>d.forma!==null)
   const bbData=metrike.filter(m=>m.body_battery_charged||m.body_battery_drained).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),charged:m.body_battery_charged,drained:m.body_battery_drained,net:(m.body_battery_charged||0)-(m.body_battery_drained||0)}))
@@ -50,7 +51,7 @@ export function TabTelo({metrike, workouts=[]}){
     </div>
 
     {/* Stat kartice — Body Battery, Mirovni HR, Koraki */}
-    <div className="grid3" style={{marginBottom:16}}>
+    <div className="grid3">
       <div className="card">
         <h3>Body Battery <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({metrike.find(m=>m.body_battery_charged||m.body_battery_drained)?.datum||'—'})</span></h3>
         <div style={{display:'flex',gap:12,alignItems:'flex-end',marginBottom:4}}>
@@ -99,7 +100,7 @@ export function TabTelo({metrike, workouts=[]}){
     </div>
 
     {/* HRV + Mirovni HR trend */}
-    <div className="grid2" style={{marginBottom:16}}>
+    <div className="grid2">
       <div className="card">
         <h3>HRV (ms)</h3>
         {hrvData.length>1?(
@@ -107,7 +108,7 @@ export function TabTelo({metrike, workouts=[]}){
             <LineChart data={hrvData} margin={{top:4,right:4,left:-20,bottom:0}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
               <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval={xInterval(hrvData.length)}/>
-              <YAxis domain={[30,100]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+              <YAxis domain={[30, hrvMax]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
               <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
               <ReferenceLine y={50} stroke="#22c55e" strokeDasharray="4 4"/>
               <Line type="monotone" dataKey="hrv" stroke="#22c55e" strokeWidth={2} dot={false}/>
@@ -132,7 +133,7 @@ export function TabTelo({metrike, workouts=[]}){
     </div>
 
     {/* Spanje + Koraki */}
-    <div className="grid2" style={{marginBottom:16}}>
+    <div className="grid2">
       <div className="card">
         <h3>Spanje (ure) — zadnjih 14 dni</h3>
         {spanjeData.length>1?(
@@ -174,7 +175,7 @@ export function TabTelo({metrike, workouts=[]}){
     </div>
 
     {/* Forma trend + Body Battery */}
-    <div className="grid2" style={{marginBottom:16}}>
+    <div className="grid2">
       <div className="card">
         <h3>Forma trend (zadnjih 14 dni)</h3>
         {formaData.length>1?(

@@ -23,7 +23,7 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
   const graf14 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum <= TODAY_STR).slice(0, 14).reverse()
 
   // Waterfall podatki za zadnjih 7 dni
-  const waterfall7 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).slice(0, 7).reverse().map(p => {
+  const waterfall7 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 7).reverse().map(p => {
     const mD = metrike.find(m => m.datum === p.datum) || {}
     const bmrD = mD.bmr_kcal || 1946
     const aktivneD = mD.aktivne_kcal || 0

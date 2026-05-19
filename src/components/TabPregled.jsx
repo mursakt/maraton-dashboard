@@ -111,7 +111,7 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
     })()}
 
     {/* Kalorije: porabljene vs zaužite */}
-      <div className="card">
+      <div className="card" style={{marginBottom:16}}>
         <h3>Kalorije <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({skupniDatum})</span></h3>
         <div style={{display:'flex',gap:24,alignItems:'flex-start',marginBottom:8}}>
           <div style={{flex:1}}>
@@ -135,7 +135,7 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
           </div>
         )}
       </div>
-      <div className="card">
+      <div className="card" style={{marginBottom:16}}>
         <h3>Kalorijski trend (mediana 7 dni)</h3>
         {medianaDeficit !== null ? (
           <div>
@@ -151,7 +151,7 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
       </div>
 
 
-    <div className="card">
+    <div className="card" style={{marginBottom:16}}>
       <h3>Zadnji 5 treningov</h3>
       <div className="workout-list">
         {workouts.slice(0,5).map((w,i)=>(<div key={i} className="workout-item"><span className="date">{w.datum?.slice(5)}</span><span className="type">{w.naziv||w.tip_treninga||'—'}</span><span className="detail">{fmt(w.razdalja_km)} km · {w.povprecni_tempo||'—'}/km · {fmt(w.trajanje_min,0)} min</span><span className="hr-badge" style={{background:hrZonaColor(w.povprecni_hr)+'22',color:hrZonaColor(w.povprecni_hr)}}>{w.povprecni_hr?`${w.povprecni_hr} bpm`:'—'}</span></div>))}
