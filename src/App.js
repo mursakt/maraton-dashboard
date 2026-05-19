@@ -1186,7 +1186,6 @@ function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],currentTede
           </div>
         ) : <div className="empty" style={{padding:8}}>Ni dovolj podatkov</div>}
       </div>
-    </div>
 
 
     <div className="card">
@@ -1386,6 +1385,7 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
           ) : null)}
         </div>
       </div>
+    </div>
     )}
 
     {/* Waterfall kalorijski graf - zadnjih 7 dni */}
