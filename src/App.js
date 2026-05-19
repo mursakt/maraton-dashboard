@@ -1992,23 +1992,22 @@ function TabTelo({metrike, workouts=[]}){
           </ResponsiveContainer>
         ):<div className="empty">Ni dovolj podatkov</div>}
       </div>
-      <div className="card">
-        <h3>Forma trend (zadnjih 14 dni)</h3>
-        {formaData.length>1?(
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={formaData} margin={{top:4,right:4,left:-20,bottom:0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
-              <YAxis domain={[0,10]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
-              <ReferenceLine y={6} stroke="#22c55e" strokeDasharray="4 4"/>
-              <Line type="monotone" dataKey="forma" stroke="#f59e0b" strokeWidth={2} dot={{r:3,fill:'#f59e0b'}}/>
-            </LineChart>
-          </ResponsiveContainer>
-        ):<div className="empty">Ni dovolj podatkov</div>}
+  {/* Resting HR trend */}
+    {restingHrData.length > 1 && (
+      <div className="card" style={{marginBottom:16}}>
+        <h3>Mirovni HR trend</h3>
+        <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>Nižji = boljša aerobna adaptacija</div>
+        <ResponsiveContainer width="100%" height={140}>
+          <LineChart data={restingHrData} margin={{top:4,right:8,left:-10,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+            <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
+            <YAxis domain={['auto','auto']} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+            <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[`${v} bpm`,'Mirovni HR']}/>
+            <Line type="monotone" dataKey="hr" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}}/>
+          </LineChart>
+        </ResponsiveContainer>
       </div>
-    </div>
-    <div className="card">
+    )}    <div className="card">
       <h3>Spanje (ure) — zadnjih 14 dni</h3>
       {spanjeData.length>1?(
         <ResponsiveContainer width="100%" height={140}>
@@ -2025,7 +2024,41 @@ function TabTelo({metrike, workouts=[]}){
     </div>
 
     {/* Body Battery graf */}
-    {bbData.length > 1 && (
+    {
+
+    {/* Koraki graf */}
+    {korakiData.length > 1 && (
+      <div className="card" style={{marginBottom:16}}>
+        <h3>Koraki — zadnjih 14 dni</h3>
+        <ResponsiveContainer width="100%" height={140}>
+          <BarChart data={korakiData} margin={{top:4,right:8,left:-10,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+            <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
+            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} tickFormatter={v=>v>=1000?`${(v/1000).toFixed(1)}k`:v}/>
+            <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[`${v.toLocaleString()} korakov`,'']}/>
+            <ReferenceLine y={10000} stroke="#475569" strokeDasharray="4 3" strokeOpacity={0.5}/>
+            <Bar dataKey="koraki" fill="#8b5cf6" radius={[3,3,0,0]}
+              cell={(entry)=><rect fill={entry.koraki>=10000?'#22c55e':'#8b5cf6'}/>}/>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    )    <div className="card">
+        <h3>Forma trend (zadnjih 14 dni)</h3>
+        {formaData.length>1?(
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={formaData} margin={{top:4,right:4,left:-20,bottom:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
+              <YAxis domain={[0,10]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
+              <ReferenceLine y={6} stroke="#22c55e" strokeDasharray="4 4"/>
+              <Line type="monotone" dataKey="forma" stroke="#f59e0b" strokeWidth={2} dot={{r:3,fill:'#f59e0b'}}/>
+            </LineChart>
+          </ResponsiveContainer>
+        ):<div className="empty">Ni dovolj podatkov</div>}
+      </div>
+    </div>
+bbData.length > 1 && (
       <div className="card" style={{marginBottom:16}}>
         <h3>Body Battery — zadnjih 14 dni</h3>
         <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>🟢 Polnjenje · 🔴 Praznjenje · Neto bilanca</div>
@@ -2045,40 +2078,7 @@ function TabTelo({metrike, workouts=[]}){
       </div>
     )}
 
-    {/* Resting HR trend */}
-    {restingHrData.length > 1 && (
-      <div className="card" style={{marginBottom:16}}>
-        <h3>Mirovni HR trend</h3>
-        <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>Nižji = boljša aerobna adaptacija</div>
-        <ResponsiveContainer width="100%" height={140}>
-          <LineChart data={restingHrData} margin={{top:4,right:8,left:-10,bottom:0}}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-            <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
-            <YAxis domain={['auto','auto']} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-            <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[`${v} bpm`,'Mirovni HR']}/>
-            <Line type="monotone" dataKey="hr" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}}/>
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    )}
-
-    {/* Koraki graf */}
-    {korakiData.length > 1 && (
-      <div className="card" style={{marginBottom:16}}>
-        <h3>Koraki — zadnjih 14 dni</h3>
-        <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={korakiData} margin={{top:4,right:8,left:-10,bottom:0}}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-            <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
-            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} tickFormatter={v=>v>=1000?`${(v/1000).toFixed(1)}k`:v}/>
-            <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[`${v.toLocaleString()} korakov`,'']}/>
-            <ReferenceLine y={10000} stroke="#475569" strokeDasharray="4 3" strokeOpacity={0.5}/>
-            <Bar dataKey="koraki" fill="#8b5cf6" radius={[3,3,0,0]}
-              cell={(entry)=><rect fill={entry.koraki>=10000?'#22c55e':'#8b5cf6'}/>}/>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    )}
+    }
 
   </>)
 }
