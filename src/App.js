@@ -2180,9 +2180,8 @@ function TabTelo({metrike, workouts=[]}){
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-    )
+    )}
     </div>
-}
 
   </>)
 }
