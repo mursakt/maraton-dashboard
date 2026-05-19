@@ -1355,6 +1355,40 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
 
 
 
+
+    {/* Mikrohranila včeraj */}
+    {vceraj.natrij_mg > 0 && (
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:8}}>Mikrohranila ({prikazDatum})</div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {[
+            { naziv: 'Natrij', val: vceraj.natrij_mg, enota: 'mg', cilj: 2300, color: '#f97316' },
+            { naziv: 'Kalij', val: vceraj.kalij_mg, enota: 'mg', cilj: 3500, color: '#22c55e' },
+            { naziv: 'Vlaknine', val: vceraj.vlaknine_g, enota: 'g', cilj: 30, color: '#3b82f6' },
+            { naziv: 'Sladkorji', val: vceraj.sladkorji_g, enota: 'g', cilj: 50, color: '#eab308' },
+            { naziv: 'Holesterol', val: vceraj.holesterol_mg, enota: 'mg', cilj: 300, color: '#94a3b8' },
+            { naziv: 'Vitamin C', val: vceraj.vitamin_c_mg, enota: 'mg', cilj: 90, color: '#f59e0b' },
+            { naziv: 'Kalcij', val: vceraj.kalcij_mg, enota: 'mg', cilj: 1000, color: '#a78bfa' },
+            { naziv: 'Železo', val: vceraj.železo_mg, enota: 'mg', cilj: 18, color: '#ef4444' },
+          ].map((m, i) => m.val > 0 ? (
+            <div key={i} style={{
+              background:'#0f172a', border:'1px solid #1e2433', borderRadius:8,
+              padding:'8px 12px', minWidth:90, flex:'1 1 90px'
+            }}>
+              <div style={{fontSize:10,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',marginBottom:4}}>{m.naziv}</div>
+              <div style={{fontSize:16,fontFamily:'DM Mono',fontWeight:300,color:m.val>=m.cilj?'#22c55e':m.color}}>
+                {Math.round(m.val)}<span style={{fontSize:10,color:'#475569',marginLeft:2}}>{m.enota}</span>
+              </div>
+              <div style={{fontSize:10,color:'#334155',marginTop:2}}>cilj: {m.cilj}{m.enota}</div>
+              <div style={{height:3,background:'#1e2433',borderRadius:2,marginTop:4}}>
+                <div style={{height:'100%',width:`${Math.min(100,Math.round(m.val/m.cilj*100))}%`,background:m.val>=m.cilj?'#22c55e':m.color,borderRadius:2}}/>
+              </div>
+            </div>
+          ) : null)}
+        </div>
+      </div>
+    )}
+
     {/* Waterfall kalorijski graf - zadnjih 7 dni */}
     {waterfall7.length > 0 && (() => {
       // Pravi waterfall: vsak dan = zauzite (zeleno) - bmr (rdeče) - aktivne (rdeče) = bilanca
