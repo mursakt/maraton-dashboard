@@ -2058,7 +2058,7 @@ function TabTelo({metrike, workouts=[]}){
     <div className="card" style={{marginBottom:16}}>
       <h3>Teža — dejanska vs plan (kg)</h3>
       {tezaGraf.length>1?(
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height={180}>
           <LineChart data={tezaGraf} margin={{top:4,right:4,left:-20,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
             <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
@@ -2075,7 +2075,7 @@ function TabTelo({metrike, workouts=[]}){
       <div className="card">
         <h3>HRV (ms)</h3>
         {hrvData.length>1?(
-          <ResponsiveContainer width="100%" height={160}>
+          <ResponsiveContainer width="100%" height={180}>
             <LineChart data={hrvData} margin={{top:4,right:4,left:-20,bottom:0}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
               <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
@@ -2092,7 +2092,7 @@ function TabTelo({metrike, workouts=[]}){
       <div className="card" style={{marginBottom:16}}>
         <h3>Mirovni HR trend</h3>
         <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>Nižji = boljša aerobna adaptacija</div>
-        <ResponsiveContainer width="100%" height={140}>
+        <ResponsiveContainer width="100%" height={180}>
           <LineChart data={restingHrData} margin={{top:4,right:8,left:-10,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
             <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
@@ -2105,7 +2105,7 @@ function TabTelo({metrike, workouts=[]}){
     )}    <div className="card">
       <h3>Spanje (ure) — zadnjih 14 dni</h3>
       {spanjeData.length>1?(
-        <ResponsiveContainer width="100%" height={140}>
+        <ResponsiveContainer width="100%" height={180}>
           <BarChart data={spanjeData} margin={{top:4,right:0,left:-20,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
             <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
@@ -2128,7 +2128,7 @@ function TabTelo({metrike, workouts=[]}){
     {korakiData.length > 1 && (
       <div className="card" style={{marginBottom:16}}>
         <h3>Koraki — zadnjih 14 dni</h3>
-        <ResponsiveContainer width="100%" height={140}>
+        <ResponsiveContainer width="100%" height={180}>
           <BarChart data={korakiData} margin={{top:4,right:8,left:-10,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
             <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
@@ -2179,8 +2179,7 @@ function TabTelo({metrike, workouts=[]}){
                 dot={(p)=><circle key={p.cx} cx={p.cx} cy={p.cy} r={3} fill={p.payload.net>=0?'#22c55e':'#ef4444'} stroke="none"/>}/>
             </ComposedChart>
           </ResponsiveContainer>
-        </div>
-      )}
+          )}
     </div>
   </div>
 
