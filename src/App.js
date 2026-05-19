@@ -1217,7 +1217,7 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
   const avgMasc = z7.reduce((s,p,_,a) => s + p.masc_g/a.length, 0) || 0
 
   // Grafi za zadnjih 14 dni
-  const graf14 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).slice(0, 14).reverse()
+  const graf14 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum <= TODAY_STR).slice(0, 14).reverse()
   
   // Waterfall podatki za zadnjih 7 dni
   const waterfall7 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).slice(0, 7).reverse().map(p => {
@@ -1528,36 +1528,97 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
       </div>
     </div>
 
-    {/* Linijski grafi za makre */}
-    <div className="grid2">
-      {[
-        { title: 'Kalorije — zadnjih 14 dni', data: kcalData, key: 'kcal', cilj: CILJI.kcal, color: '#f97316', unit: 'kcal' },
-        { title: 'Beljakovine — zadnjih 14 dni', data: beljData, key: 'val', cilj: CILJI.belj, color: '#22c55e', unit: 'g' },
-        { title: 'OH — zadnjih 14 dni', data: ohData, key: 'val', cilj: CILJI.oh, color: '#3b82f6', unit: 'g' },
-        { title: 'Maščobe — zadnjih 14 dni', data: mascData, key: 'val', cilj: CILJI.masc, color: '#a78bfa', unit: 'g' },
-      ].map((g, i) => {
-        const maxVal = g.data.length > 0 ? Math.max(...g.data.map(d => d[g.key] || 0), g.cilj) : g.cilj
-        const yMax = Math.ceil(maxVal * 1.15)
-        return (
-        <div key={i} className="card">
-          <h3>{g.title}</h3>
+    {/* Linijsk    {/* Združeni makro graf z dropdownom */}
+    {(() => {
+      const [selectedMakro, setSelectedMakro] = React.useState('kcal')
+      const makroOpcije = [
+        { key: 'kcal', naziv: 'Kalorije', data: kcalData, dataKey: 'kcal', cilj: ciljiVceraj.kcal||CILJI.kcal, color: '#f97316', unit: 'kcal' },
+        { key: 'belj', naziv: 'Beljakovine', data: beljData, dataKey: 'val', cilj: ciljiVceraj.belj||CILJI.belj, color: '#22c55e', unit: 'g' },
+        { key: 'oh', naziv: 'OH', data: ohData, dataKey: 'val', cilj: ciljiVceraj.oh||CILJI.oh, color: '#3b82f6', unit: 'g' },
+        { key: 'masc', naziv: 'Maščobe', data: mascData, dataKey: 'val', cilj: ciljiVceraj.masc||CILJI.masc, color: '#a78bfa', unit: 'g' },
+      ]
+      const g = makroOpcije.find(m => m.key === selectedMakro) || makroOpcije[0]
+      const maxVal = g.data.length > 0 ? Math.max(...g.data.map(d => d[g.dataKey] || 0), g.cilj) : g.cilj
+      const yMax = Math.ceil(maxVal * 1.15)
+      return (
+        <div className="card" style={{marginBottom:16}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+            <h3 style={{margin:0}}>Trend prehrane — zadnjih 14 dni</h3>
+            <div style={{display:'flex',gap:6}}>
+              {makroOpcije.map(m => (
+                <button key={m.key} onClick={()=>setSelectedMakro(m.key)} style={{
+                  padding:'4px 10px', borderRadius:4, fontSize:11, fontFamily:'DM Mono', cursor:'pointer',
+                  background: selectedMakro===m.key ? m.color+'33' : '#0f172a',
+                  border: `1px solid ${selectedMakro===m.key ? m.color : '#1e2433'}`,
+                  color: selectedMakro===m.key ? m.color : '#475569'
+                }}>{m.naziv}</button>
+              ))}
+            </div>
+          </div>
           {g.data.length > 1 ? (
-            <ResponsiveContainer width="100%" height={140}>
-              <LineChart data={g.data} margin={{top:4,right:4,left:-20,bottom:0}}>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={g.data} margin={{top:4,right:8,left:-10,bottom:0}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
                 <XAxis dataKey="datum" {...axisProps}/>
                 <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={[0, yMax]}/>
-                <Tooltip {...tooltipProps} formatter={v=>[`${Math.round(v)} ${g.unit}`, '']}/>
+                <Tooltip {...tooltipProps} formatter={v=>[`${Math.round(v)} ${g.unit}`, g.naziv]}/>
                 <ReferenceLine y={g.cilj} stroke={g.color} strokeDasharray="5 3" strokeWidth={1.5} strokeOpacity={0.7}/>
-                <Line type="monotone" dataKey={g.key} stroke={g.color} strokeWidth={2} dot={{r:3,fill:g.color}}/>
+                <Line type="monotone" dataKey={g.dataKey} stroke={g.color} strokeWidth={2} dot={{r:3,fill:g.color}}/>
               </LineChart>
             </ResponsiveContainer>
           ) : <div className="empty">Ni dovolj podatkov</div>}
         </div>
-        )
-      })}
-    </div>
+      )
+    })()}
+
+    {/* Mikro hranila graf z dropdownom */}
+    {vceraj.natrij_mg > 0 && (() => {
+      const [selectedMikro, setSelectedMikro] = React.useState('natrij')
+      const mikroOpcije = [
+        { key: 'natrij', naziv: 'Natrij', dataKey: 'natrij_mg', cilj: 2300, color: '#f97316', unit: 'mg' },
+        { key: 'kalij', naziv: 'Kalij', dataKey: 'kalij_mg', cilj: 3500, color: '#22c55e', unit: 'mg' },
+        { key: 'vlaknine', naziv: 'Vlaknine', dataKey: 'vlaknine_g', cilj: 30, color: '#3b82f6', unit: 'g' },
+        { key: 'sladkorji', naziv: 'Sladkorji', dataKey: 'sladkorji_g', cilj: 50, color: '#eab308', unit: 'g' },
+        { key: 'holesterol', naziv: 'Holesterol', dataKey: 'holesterol_mg', cilj: 300, color: '#94a3b8', unit: 'mg' },
+        { key: 'vitamin_c', naziv: 'Vit. C', dataKey: 'vitamin_c_mg', cilj: 90, color: '#f59e0b', unit: 'mg' },
+        { key: 'kalcij', naziv: 'Kalcij', dataKey: 'kalcij_mg', cilj: 1000, color: '#a78bfa', unit: 'mg' },
+        { key: 'železo', naziv: 'Železo', dataKey: 'železo_mg', cilj: 18, color: '#ef4444', unit: 'mg' },
+      ]
+      const gm = mikroOpcije.find(m => m.key === selectedMikro) || mikroOpcije[0]
+      const mikroData = graf14.map(p => ({ datum: p.datum?.slice(5), val: p[gm.dataKey] || 0 }))
+      const maxMikro = Math.max(...mikroData.map(d => d.val), gm.cilj) * 1.15
+      return (
+        <div className="card" style={{marginBottom:16}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:6}}>
+            <h3 style={{margin:0}}>Mikrohranila — zadnjih 14 dni</h3>
+            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+              {mikroOpcije.map(m => (
+                <button key={m.key} onClick={()=>setSelectedMikro(m.key)} style={{
+                  padding:'3px 8px', borderRadius:4, fontSize:10, fontFamily:'DM Mono', cursor:'pointer',
+                  background: selectedMikro===m.key ? m.color+'33' : '#0f172a',
+                  border: `1px solid ${selectedMikro===m.key ? m.color : '#1e2433'}`,
+                  color: selectedMikro===m.key ? m.color : '#475569'
+                }}>{m.naziv}</button>
+              ))}
+            </div>
+          </div>
+          {mikroData.filter(d=>d.val>0).length > 1 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={mikroData} margin={{top:4,right:8,left:-10,bottom:0}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+                <XAxis dataKey="datum" {...axisProps}/>
+                <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} domain={[0, Math.ceil(maxMikro)]}/>
+                <Tooltip {...tooltipProps} formatter={v=>[`${Math.round(v*10)/10} ${gm.unit}`, gm.naziv]}/>
+                <ReferenceLine y={gm.cilj} stroke={gm.color} strokeDasharray="5 3" strokeWidth={1.5} strokeOpacity={0.7}/>
+                <Line type="monotone" dataKey="val" stroke={gm.color} strokeWidth={2} dot={{r:3,fill:gm.color}}/>
+              </LineChart>
+            </ResponsiveContainer>
+          ) : <div className="empty">Ni dovolj podatkov za mikrohranila</div>}
+        </div>
+      )
+    })()}
   </>)
+
 }
 
 function TabPredikcija({predikcija, workouts}){
@@ -1932,7 +1993,7 @@ function TabTelo({metrike, workouts=[]}){
     const p=PLAN.slice().reverse().find(pl=>pl.datum<=m.datum)
     return{datum:m.datum?.slice(5),dejanska:m.teza_kg,plan:p?.ciljnaKg||null}
   })
-  const hrvData=metrike.filter(m=>m.hrv).slice(0,20).reverse().map(m=>({datum:m.datum?.slice(5),hrv:m.hrv}))
+  const hrvData=metrike.filter(m=>m.hrv).slice(0,28).reverse().map(m=>({datum:m.datum?.slice(5),hrv:m.hrv}))
   const spanjeData=metrike.filter(m=>m.spanje_h).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),ure:m.spanje_h}))
   const formaData=metrike.slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),forma:izracunajFormo(m.hrv,m.spanje_h,m.stres_povprecje)})).filter(d=>d.forma!==null)
   const bbData=metrike.filter(m=>m.body_battery_charged||m.body_battery_drained).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),charged:m.body_battery_charged,drained:m.body_battery_drained,net:(m.body_battery_charged||0)-(m.body_battery_drained||0)}))
@@ -2085,6 +2146,7 @@ function TabTelo({metrike, workouts=[]}){
       </div>
     )}
 
+    <div className="grid2" style={{marginBottom:16}}>
     <div className="card">
         <h3>Forma trend (zadnjih 14 dni)</h3>
         {formaData.length>1?(
@@ -2092,7 +2154,7 @@ function TabTelo({metrike, workouts=[]}){
             <LineChart data={formaData} margin={{top:4,right:4,left:-20,bottom:0}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
               <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
-              <YAxis domain={[0,10]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+              <YAxis domain={[3,10]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
               <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
               <ReferenceLine y={6} stroke="#22c55e" strokeDasharray="4 4"/>
               <Line type="monotone" dataKey="forma" stroke="#f59e0b" strokeWidth={2} dot={{r:3,fill:'#f59e0b'}}/>
@@ -2100,7 +2162,6 @@ function TabTelo({metrike, workouts=[]}){
           </ResponsiveContainer>
         ):<div className="empty">Ni dovolj podatkov</div>}
       </div>
-    </div>
     {bbData.length > 1 && (
       <div className="card" style={{marginBottom:16}}>
         <h3>Body Battery — zadnjih 14 dni</h3>
@@ -2119,7 +2180,9 @@ function TabTelo({metrike, workouts=[]}){
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-    )}
+    )
+    </div>
+}
 
   </>)
 }
