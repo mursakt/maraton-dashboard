@@ -2146,7 +2146,7 @@ function TabTelo({metrike, workouts=[]}){
       </div>
     )}
 
-    <div className="grid2">
+    <div className="grid2" style={{marginBottom:16}}>
       <div className="card">
         <h3>Forma trend (zadnjih 14 dni)</h3>
         {formaData.length>1?(
