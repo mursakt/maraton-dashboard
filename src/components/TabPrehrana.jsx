@@ -259,6 +259,7 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
                       <div style={{color:'#22c55e'}}>Zaužite: {Math.round(d.zauzite)} kcal</div>
                       <div style={{color:'#3b82f6'}}>BMR: {Math.round(d.bmrVal)} kcal</div>
                       <div style={{color:'#8b5cf6'}}>Aktivne: {Math.round(d.aktivneVal)} kcal</div>
+                      <div style={{color:'#64748b'}}>Skupaj porabljene: {Math.round(d.skupajPor)} kcal</div>
                       <div style={{color: d.bilanca >= 0 ? '#22c55e' : '#ef4444', fontWeight:600, marginTop:4, borderTop:'1px solid #1e2433', paddingTop:4}}>
                         Bilanca: {d.bilanca >= 0 ? '+' : ''}{Math.round(d.bilanca)} kcal
                       </div>
