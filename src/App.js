@@ -1148,7 +1148,6 @@ function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],currentTede
     })()}
 
     {/* Kalorije: porabljene vs zaužite */}
-    <div className="grid2" style={{marginBottom:16}}>
       <div className="card">
         <h3>Kalorije <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({skupniDatum})</span></h3>
         <div style={{display:'flex',gap:24,alignItems:'flex-start',marginBottom:8}}>
@@ -2181,9 +2180,9 @@ function TabTelo({metrike, workouts=[]}){
           </ResponsiveContainer>
         </div>
       )}
-    </div>
   </div>
 
+  </div>
   </>)
 }
 
