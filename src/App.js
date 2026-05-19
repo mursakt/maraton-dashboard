@@ -2179,9 +2179,9 @@ function TabTelo({metrike, workouts=[]}){
                 dot={(p)=><circle key={p.cx} cx={p.cx} cy={p.cy} r={3} fill={p.payload.net>=0?'#22c55e':'#ef4444'} stroke="none"/>}/>
             </ComposedChart>
           </ResponsiveContainer>
-          )}
+        </div>
+      )}
     </div>
-  </div>
 
   </>)
 }
