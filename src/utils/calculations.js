@@ -1,5 +1,6 @@
 import { PLAN, CILJI, TODAY, TODAY_STR, YESTERDAY_STR, getCurrentTeden } from '../constants/plan'
 import { tempoStrToSec } from './tempo'
+import { isTek } from './helpers'
 
 export function izracunajLoad(workouts) {
   const danes = new Date()
@@ -299,4 +300,79 @@ export function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) 
     prehranaVceraj,
     metrikeDanPred,
   }
+}
+
+export function izracunajPredikcijo(workouts, metrike) {
+  const teki = workouts.filter(w => isTek(w) && w.razdalja_km > 0 && w.povprecni_hr > 0)
+  if (teki.length === 0) return null
+  const vo2Teki = teki.filter(w => w.vo2max && w.vo2max > 0)
+  const avgVo2 = vo2Teki.length > 0 ? vo2Teki.reduce((s, w) => s + w.vo2max, 0) / vo2Teki.length : null
+  let casVo2 = null
+  let vo2Uporabljen = null
+  if (avgVo2) {
+    vo2Uporabljen = avgVo2
+    const vVO2max = 29.54 + 5.000663 * avgVo2 - 0.007546 * avgVo2 * avgVo2
+    const maraTempoMMin = vVO2max * 0.77
+    const maraTempoSecKm = 1000 / maraTempoMMin * 60
+    casVo2 = maraTempoSecKm * 42.195
+  }
+  const hrTempoTocke = teki.filter(w => w.povprecni_hr >= 130 && w.povprecni_hr <= 175 && w.povprecni_tempo).map(w => ({ hr: w.povprecni_hr, tempoSec: tempoStrToSec(w.povprecni_tempo), datum: w.datum })).filter(p => p.tempoSec !== null)
+  let casHR = null
+  let tempoNa155 = null
+  if (hrTempoTocke.length >= 2) {
+    const n = hrTempoTocke.length
+    const sumHR = hrTempoTocke.reduce((s, p) => s + p.hr, 0)
+    const sumT = hrTempoTocke.reduce((s, p) => s + p.tempoSec, 0)
+    const sumHR2 = hrTempoTocke.reduce((s, p) => s + p.hr * p.hr, 0)
+    const sumHRT = hrTempoTocke.reduce((s, p) => s + p.hr * p.tempoSec, 0)
+    const slope = (n * sumHRT - sumHR * sumT) / (n * sumHR2 - sumHR * sumHR)
+    const intercept = (sumT - slope * sumHR) / n
+    const maraHR = 163
+    const maraTempoSec = slope * maraHR + intercept
+    tempoNa155 = slope * 155 + intercept
+    casHR = maraTempoSec * 42.195
+  }
+  let casBaza
+  if (casVo2 && casHR) { casBaza = casVo2 * 0.6 + casHR * 0.4 }
+  else if (casVo2) { casBaza = casVo2 }
+  else if (casHR) { casBaza = casHR }
+  else { return null }
+  const zadnjaTeza = metrike.find(m => m.teza_kg)?.teza_kg
+  const tezaKorekcija = zadnjaTeza ? (zadnjaTeza - 97) * 1.5 * 60 : 0
+  const tedniMap = {}
+  teki.forEach(w => {
+    const d = new Date(w.datum); const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+    const key = mon.toISOString().slice(0, 10)
+    tedniMap[key] = (tedniMap[key] || 0) + (w.razdalja_km || 0)
+  })
+  const maxKm = Math.max(...Object.values(tedniMap), 0)
+  const kmKorekcija = maxKm < 35 ? 5 * 60 : maxKm > 50 ? -3 * 60 : 0
+  const prvicKorekcija = 8 * 60
+  const casFinal = casBaza + tezaKorekcija + kmKorekcija + prvicKorekcija
+  let zanesljivost = 0
+  let zanesljivostRazlogi = []
+  if (teki.length >= 10) { zanesljivost += 25; zanesljivostRazlogi.push(`${teki.length} tekov v bazi ✓`) }
+  else if (teki.length >= 5) { zanesljivost += 15; zanesljivostRazlogi.push(`${teki.length} tekov (optimalno 10+)`) }
+  else { zanesljivost += 5; zanesljivostRazlogi.push(`samo ${teki.length} teki`) }
+  if (vo2Teki.length >= 3) { zanesljivost += 25; zanesljivostRazlogi.push(`VO2max iz ${vo2Teki.length} meritev ✓`) }
+  else if (vo2Teki.length > 0) { zanesljivost += 15; zanesljivostRazlogi.push(`VO2max samo ${vo2Teki.length} meritev`) }
+  else { zanesljivostRazlogi.push('ni VO2max podatkov') }
+  if (hrTempoTocke.length >= 5) { zanesljivost += 25; zanesljivostRazlogi.push('dobra HR-tempo korelacija ✓') }
+  else if (hrTempoTocke.length >= 2) { zanesljivost += 15; zanesljivostRazlogi.push('osnovna HR-tempo korelacija') }
+  else { zanesljivostRazlogi.push('premalo HR-tempo točk') }
+  const currentTeden = getCurrentTeden()
+  if (currentTeden >= 16) { zanesljivost += 25; zanesljivostRazlogi.push('pozna faza priprav ✓') }
+  else if (currentTeden >= 10) { zanesljivost += 15; zanesljivostRazlogi.push(`T${currentTeden} — sredina priprav`) }
+  else { zanesljivost += 5; zanesljivostRazlogi.push(`T${currentTeden} — zgodnja faza`) }
+  zanesljivost = Math.min(zanesljivost, 95)
+  let trend = null
+  if (hrTempoTocke.length >= 4) {
+    const sorted = [...hrTempoTocke].sort((a, b) => a.datum.localeCompare(b.datum))
+    const prviDel = sorted.slice(0, Math.floor(sorted.length / 2))
+    const zadnjiDel = sorted.slice(Math.floor(sorted.length / 2))
+    const avgTempoZgodaj = prviDel.reduce((s, p) => s + p.tempoSec, 0) / prviDel.length
+    const avgTempoKasno = zadnjiDel.reduce((s, p) => s + p.tempoSec, 0) / zadnjiDel.length
+    trend = (avgTempoZgodaj - avgTempoKasno) * 42.195
+  }
+  return { casFinal, casVo2, casHR, zanesljivost, zanesljivostRazlogi, tezaKorekcija, kmKorekcija, prvicKorekcija, trend, tempoNa155, vo2Uporabljen, maxKm, steviloTekov: teki.length, zadnjaTeza }
 }
