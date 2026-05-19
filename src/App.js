@@ -1385,7 +1385,6 @@ function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefres
           ) : null)}
         </div>
       </div>
-    </div>
     )}
 
     {/* Waterfall kalorijski graf - zadnjih 7 dni */}
