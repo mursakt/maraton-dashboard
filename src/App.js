@@ -2024,7 +2024,6 @@ function TabTelo({metrike, workouts=[]}){
     </div>
 
     {/* Body Battery graf */}
-    {
 
     {/* Koraki graf */}
     {korakiData.length > 1 && (
@@ -2058,7 +2057,7 @@ function TabTelo({metrike, workouts=[]}){
         ):<div className="empty">Ni dovolj podatkov</div>}
       </div>
     </div>
-bbData.length > 1 && (
+    {bbData.length > 1 && (
       <div className="card" style={{marginBottom:16}}>
         <h3>Body Battery — zadnjih 14 dni</h3>
         <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>🟢 Polnjenje · 🔴 Praznjenje · Neto bilanca</div>
