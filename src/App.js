@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend, ComposedChart } from 'recharts'
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend, ComposedChart } from 'recharts'
 
 const PLAN = [
   { teden: 1,  datum: '2026-04-20', faza: 'F1', km: 11,  ciljnaKg: 97.0 },
@@ -2016,8 +2016,12 @@ function TabTelo({metrike, workouts=[]}){
             <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
             <YAxis domain={[4,10]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
             <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
-            <ReferenceLine y={7.5} stroke="#22c55e" strokeDasharray="4 4"/>
-            <Bar dataKey="ure" fill="#8b5cf6" radius={[3,3,0,0]}/>
+            <ReferenceLine y={7.5} stroke="#475569" strokeDasharray="5 3" strokeWidth={1.5} strokeOpacity={0.7}/>
+            <Bar dataKey="ure" radius={[3,3,0,0]} fill="#22c55e">
+              {spanjeData.map((d,i)=>(
+                <Cell key={i} fill={d.ure>=7.5?'#22c55e':'#ef4444'}/>
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       ):<div className="empty">Ni dovolj podatkov</div>}
@@ -2036,8 +2040,12 @@ function TabTelo({metrike, workouts=[]}){
             <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} tickFormatter={v=>v>=1000?`${(v/1000).toFixed(1)}k`:v}/>
             <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[`${v.toLocaleString()} korakov`,'']}/>
             <ReferenceLine y={10000} stroke="#475569" strokeDasharray="4 3" strokeOpacity={0.5}/>
-            <Bar dataKey="koraki" fill="#8b5cf6" radius={[3,3,0,0]}
-              cell={(entry)=><rect fill={entry.koraki>=10000?'#22c55e':'#8b5cf6'}/>}/>
+            <ReferenceLine y={10000} stroke="#475569" strokeDasharray="5 3" strokeWidth={1.5} strokeOpacity={0.7}/>
+            <Bar dataKey="koraki" radius={[3,3,0,0]} fill="#22c55e">
+              {korakiData.map((d,i)=>(
+                <Cell key={i} fill={d.koraki>=10000?'#22c55e':'#ef4444'}/>
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
