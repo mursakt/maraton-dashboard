@@ -1,13 +1,21 @@
 import React from 'react'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { TODAY } from '../constants/plan'
 import { izracunajLoad, analizirajTek } from '../utils/calculations'
 import { isTek, fmt, hrZona, hrZonaColor } from '../utils/helpers'
 import { StatCard } from './StatCard'
 import { NaslednjihPetTreningov } from './NaslednjihPetTreningov'
 import { AnalizaTeka } from './AnalizaTeka'
+import { supabase } from '../supabase'
 
-export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
+const OCENE = [
+  { key: 'lahko',          label: 'Lahko',          color: '#22c55e' },
+  { key: 'nevtralno',      label: 'Nevtralno',      color: '#3b82f6' },
+  { key: 'zmerno_tezko',   label: 'Zmerno težko',   color: '#eab308' },
+  { key: 'katastrofalno',  label: 'Katastrofalno',  color: '#ef4444' },
+]
+
+export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefresh}){
   const teki=workouts.filter(w=>isTek(w)&&w.razdalja_km>0)
   const tedniMap={}
   workouts.filter(w=>isTek(w)&&w.razdalja_km>0).forEach(w=>{
@@ -39,6 +47,36 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
   const prejsnjiTeden = new Date(TODAY - 7*86400000).toISOString().slice(0,10)
   const starejsiVo2 = vo2Sorted.find(w => w.datum <= prejsnjiTeden)?.vo2max || null
   const vo2Diff = zadnjiVo2 && starejsiVo2 ? Math.round((zadnjiVo2 - starejsiVo2)*10)/10 : null
+
+  const [ocenaMap, setOcenaMap] = React.useState({})
+  const getOcena = (workout) => ocenaMap[workout.id] ?? workout.subjektivna_ocena
+  const saveOcena = async (workoutId, ocena) => {
+    setOcenaMap(prev => ({ ...prev, [workoutId]: ocena }))
+    await supabase.from('workouts').update({ subjektivna_ocena: ocena }).eq('id', workoutId)
+    if (onRefresh) onRefresh()
+  }
+  const atlCtlTrend = React.useMemo(() => {
+    const loadMap = {}
+    workouts.forEach(w => {
+      if (!w.datum) return
+      loadMap[w.datum] = (loadMap[w.datum] || 0) + Math.round((w.trajanje_min || 0) * (w.aerobni_te || 1))
+    })
+    const result = []
+    const today = new Date()
+    for (let i = 89; i >= 0; i--) {
+      const date = new Date(today - i * 86400000)
+      const dateStr = date.toISOString().slice(0, 10)
+      let atlSum = 0
+      for (let j = 0; j < 7; j++) atlSum += loadMap[new Date(date - j * 86400000).toISOString().slice(0, 10)] || 0
+      let ctlSum = 0
+      for (let j = 0; j < 28; j++) ctlSum += loadMap[new Date(date - j * 86400000).toISOString().slice(0, 10)] || 0
+      const atl = Math.round(atlSum / 7)
+      const ctl = Math.round(ctlSum / 28)
+      const razmerje = ctl > 0 ? Math.round((atl / ctl) * 100) / 100 : null
+      result.push({ datum: dateStr.slice(5), atl, ctl, razmerje })
+    }
+    return result
+  }, [workouts])
 
   return(<>
     <div className="grid4">
@@ -170,6 +208,18 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
             <span style={{fontFamily:'DM Mono',fontSize:13,color:hrZonaColor(a.tek.povprecni_hr)}}>{a.tek.povprecni_hr} avg · {a.tek.max_hr} max bpm</span>
             <span style={{fontSize:13,padding:'2px 10px',borderRadius:4,background:ocenaColor+'22',color:ocenaColor,fontWeight:600}}>{ocenaEmoji} {ocena}</span>
           </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Subjektivna ocena teka</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {OCENE.map(o => {
+                const current = getOcena(zadnjiTek)
+                const active = current === o.key
+                return (
+                  <button key={o.key} onClick={() => saveOcena(zadnjiTek.id, o.key)} style={{padding:'4px 12px',borderRadius:4,border:`1px solid ${active ? o.color : '#1e2433'}`,background:active ? o.color+'33' : '#0f172a',color:active ? o.color : '#64748b',fontSize:12,cursor:'pointer',fontFamily:'DM Mono'}}>{o.label}</button>
+                )
+              })}
+            </div>
+          </div>
           {tocke.map((t, i) => (
             <div key={i} style={{display:'flex',gap:10,padding:'8px 12px',borderRadius:6,marginBottom:6,background:'#0f172a',borderLeft:`3px solid ${t.barva}`,fontSize:13,color:'#94a3b8',alignItems:'flex-start'}}>
               <span style={{lineHeight:1.5}}>{t.tekst}</span>
@@ -274,10 +324,29 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[]}){
       )
     })()}
 
+    <div className="card" style={{marginBottom:16}}>
+      <h3>ATL / CTL trend (90 dni)</h3>
+      <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>ATL = kratkoročna utrujenost · CTL = fitnes baza · razmerje idealno 0.8–1.3</div>
+      <ResponsiveContainer width="100%" height={220}>
+        <ComposedChart data={atlCtlTrend} margin={{top:4,right:40,left:10,bottom:0}}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+          <XAxis dataKey="datum" tick={{fontSize:9,fill:'#475569',fontFamily:'DM Mono'}} interval={Math.floor(atlCtlTrend.length/6)}/>
+          <YAxis yAxisId="load" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={30}/>
+          <YAxis yAxisId="razm" orientation="right" domain={[0,2.5]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={30}/>
+          <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:11}}/>
+          <Line yAxisId="load" type="monotone" dataKey="atl" stroke="#f97316" strokeWidth={2} dot={false} name="ATL"/>
+          <Line yAxisId="load" type="monotone" dataKey="ctl" stroke="#3b82f6" strokeWidth={2} dot={false} name="CTL"/>
+          <Line yAxisId="razm" type="monotone" dataKey="razmerje" stroke="#a78bfa" strokeWidth={1.5} dot={false} strokeDasharray="4 2" name="ATL/CTL"/>
+          <ReferenceLine yAxisId="razm" y={1.3} stroke="#eab308" strokeDasharray="3 3" strokeWidth={1}/>
+          <ReferenceLine yAxisId="razm" y={0.8} stroke="#22c55e" strokeDasharray="3 3" strokeWidth={1}/>
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+
     <div className="card">
       <h3>Vsi treningi ({workouts.length})</h3>
       <div className="workout-list" style={{maxHeight:420,overflowY:'auto'}}>
-        {workouts.map((w,i)=>(<div key={i} className="workout-item"><span className="date">{w.datum?.slice(5)}</span><span className="type" style={{fontSize:11,minWidth:80}}>{w.naziv||w.tip_treninga||'—'}</span><span className="detail">{w.razdalja_km>0?`${fmt(w.razdalja_km)} km · `:''}{w.povprecni_tempo?`${w.povprecni_tempo}/km · `:''}{fmt(w.trajanje_min,0)} min</span>{w.vo2max>0&&<span style={{fontSize:11,color:'#a78bfa',fontFamily:'DM Mono'}}>VO2: {fmt(w.vo2max,1)}</span>}<span className="hr-badge" style={{background:hrZonaColor(w.povprecni_hr)+'22',color:hrZonaColor(w.povprecni_hr)}}>{w.povprecni_hr||'—'} bpm</span></div>))}
+        {workouts.map((w,i)=>(<div key={i} className="workout-item"><span className="date">{w.datum?.slice(5)}</span><span className="type" style={{fontSize:11,minWidth:80}}>{w.naziv||w.tip_treninga||'—'}</span><span className="detail">{w.razdalja_km>0?`${fmt(w.razdalja_km)} km · `:''}{w.povprecni_tempo?`${w.povprecni_tempo}/km · `:''}{fmt(w.trajanje_min,0)} min</span>{w.vo2max>0&&<span style={{fontSize:11,color:'#a78bfa',fontFamily:'DM Mono'}}>VO2: {fmt(w.vo2max,1)}</span>}<span className="hr-badge" style={{background:hrZonaColor(w.povprecni_hr)+'22',color:hrZonaColor(w.povprecni_hr)}}>{w.povprecni_hr||'—'} bpm</span>{isTek(w)&&getOcena(w)&&<span style={{fontSize:10,padding:'2px 7px',borderRadius:3,background:OCENE.find(o=>o.key===getOcena(w))?.color+'22'||'#1e2433',color:OCENE.find(o=>o.key===getOcena(w))?.color||'#94a3b8',fontFamily:'DM Mono'}}>{OCENE.find(o=>o.key===getOcena(w))?.label||getOcena(w)}</span>}</div>))}
         {workouts.length===0&&<div className="empty">Ni podatkov</div>}
       </div>
       <NaslednjihPetTreningov/>
