@@ -2041,7 +2041,9 @@ function TabTelo({metrike, workouts=[]}){
           </BarChart>
         </ResponsiveContainer>
       </div>
-    )    <div className="card">
+    )}
+
+    <div className="card">
         <h3>Forma trend (zadnjih 14 dni)</h3>
         {formaData.length>1?(
           <ResponsiveContainer width="100%" height={160}>
