@@ -6,83 +6,11 @@ import { StatCard } from './components/StatCard'
 import { ProgressBar } from './components/ProgressBar'
 import { tempoStrToSec, secToTempoStr, secToHMS } from './utils/tempo'
 import { fmt, hrZona, hrZonaColor, isTek, formaColor, formaLabel, pripravljenostColor, pripravljenostLabel } from './utils/helpers'
+import { PLAN, PLAN_TRENINGI, CILJI, FAZA_COLOR, FAZA_LABEL, TODAY, TODAY_STR, YESTERDAY_STR, getCurrentTeden } from './constants/plan'
+import { izracunajLoad, izracunajPripravljenost, opozoriloPredTreningom } from './utils/calculations'
+import { TabPregled } from './components/TabPregled'
+import { NaslednjihPetTreningov } from './components/NaslednjihPetTreningov'
 
-const PLAN = [
-  { teden: 1,  datum: '2026-04-20', faza: 'F1', km: 11,  ciljnaKg: 97.0 },
-  { teden: 2,  datum: '2026-04-27', faza: 'F1', km: 22,  ciljnaKg: 96.5 },
-  { teden: 3,  datum: '2026-05-04', faza: 'F1', km: 24,  ciljnaKg: 96.0 },
-  { teden: 4,  datum: '2026-05-11', faza: 'F1', km: 28,  ciljnaKg: 95.5 },
-  { teden: 5,  datum: '2026-05-18', faza: 'F1', km: 29,  ciljnaKg: 95.0 },
-  { teden: 6,  datum: '2026-05-25', faza: 'F1', km: 21,  ciljnaKg: 96.0 },
-  { teden: 7,  datum: '2026-06-01', faza: 'F2', km: 27,  ciljnaKg: 94.5 },
-  { teden: 8,  datum: '2026-06-08', faza: 'F2', km: 30,  ciljnaKg: 94.0 },
-  { teden: 9,  datum: '2026-06-15', faza: 'F2', km: 31,  ciljnaKg: 93.5 },
-  { teden: 10, datum: '2026-06-22', faza: 'F2', km: 34,  ciljnaKg: 93.0 },
-  { teden: 11, datum: '2026-06-29', faza: 'F2', km: 36,  ciljnaKg: 92.5 },
-  { teden: 12, datum: '2026-07-06', faza: 'F2', km: 26,  ciljnaKg: 92.0 },
-  { teden: 13, datum: '2026-07-13', faza: 'F2', km: 38,  ciljnaKg: 91.5 },
-  { teden: 14, datum: '2026-07-20', faza: 'F2', km: 39,  ciljnaKg: 91.0 },
-  { teden: 15, datum: '2026-07-27', faza: 'F3', km: 44,  ciljnaKg: 90.5 },
-  { teden: 16, datum: '2026-08-03', faza: 'F3', km: 48,  ciljnaKg: 90.0 },
-  { teden: 17, datum: '2026-08-10', faza: 'F3', km: 52,  ciljnaKg: 89.5 },
-  { teden: 18, datum: '2026-08-17', faza: 'F3', km: 32,  ciljnaKg: 89.0 },
-  { teden: 19, datum: '2026-08-24', faza: 'F3', km: 52,  ciljnaKg: 88.5 },
-  { teden: 20, datum: '2026-08-31', faza: 'F3', km: 57,  ciljnaKg: 88.0 },
-  { teden: 21, datum: '2026-09-07', faza: 'F4', km: 38,  ciljnaKg: 87.0 },
-  { teden: 22, datum: '2026-09-14', faza: 'F4', km: 28,  ciljnaKg: 86.5 },
-  { teden: 23, datum: '2026-09-21', faza: 'F4', km: 19,  ciljnaKg: 86.0 },
-  { teden: 24, datum: '2026-09-28', faza: 'F4', km: 42,  ciljnaKg: 85.0 },
-]
-
-// Cilji prehrane
-const CILJI = { kcal: 2240, belj: 224, oh: 196, masc: 62 }
-
-
-// Planirani treningi iz programa
-const PLAN_TRENINGI = [
-  // T01
-  { datum: '2026-04-22', teden: 1, naziv: 'T01A', opis: '5 km lahkotno', km: 5, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-04-23', teden: 1, naziv: 'T01B', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  // T02
-  { datum: '2026-04-27', teden: 2, naziv: 'T02A', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-04-29', teden: 2, naziv: 'T02B', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-02', teden: 2, naziv: 'T02C', opis: '10 km dolgi tek', km: 10, tempo: '6:00', hr: '138–154' },
-  // T03
-  { datum: '2026-05-04', teden: 3, naziv: 'T03A', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-07', teden: 3, naziv: 'T03B', opis: '7 km lahkotno', km: 7, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-09', teden: 3, naziv: 'T03C', opis: '11 km dolgi tek', km: 11, tempo: '6:00', hr: '138–154' },
-  // T04
-  { datum: '2026-05-12', teden: 4, naziv: 'T04A', opis: '7 km lahkotno', km: 7, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-14', teden: 4, naziv: 'T04B', opis: '8 km lahkotno', km: 8, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-16', teden: 4, naziv: 'T04C', opis: '13 km dolgi tek', km: 13, tempo: '6:00', hr: '138–154' },
-  // T05
-  { datum: '2026-05-19', teden: 5, naziv: 'T05A', opis: '7 km lahkotno', km: 7, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-21', teden: 5, naziv: 'T05B', opis: '8 km lahkotno', km: 8, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-23', teden: 5, naziv: 'T05C', opis: '14 km dolgi tek', km: 14, tempo: '6:00', hr: '138–154' },
-  // T06
-  { datum: '2026-05-26', teden: 6, naziv: 'T06A', opis: '5 km lahkotno', km: 5, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-28', teden: 6, naziv: 'T06B', opis: '6 km lahkotno', km: 6, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-05-30', teden: 6, naziv: 'T06C', opis: '10 km lahkotno ⚡', km: 10, tempo: '6:00', hr: '138–154' },
-  // T07
-  { datum: '2026-06-02', teden: 7, naziv: 'T07A', opis: '5×800m intervali', km: 8, tempo: '4:50', hr: '169–185' },
-  { datum: '2026-06-04', teden: 7, naziv: 'T07B', opis: '8 km lahkotno', km: 8, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-06-06', teden: 7, naziv: 'T07C', opis: '15 km dolgi tek', km: 15, tempo: '6:00', hr: '138–154' },
-  // T08
-  { datum: '2026-06-09', teden: 8, naziv: 'T08A', opis: '🏔️ Hribčki 8×30s + 5km', km: 8, tempo: '6:15', hr: '138–185' },
-  { datum: '2026-06-11', teden: 8, naziv: 'T08B', opis: '9 km lahkotno', km: 9, tempo: '6:15', hr: '138–154' },
-  { datum: '2026-06-13', teden: 8, naziv: 'T08C', opis: '17 km dolgi tek', km: 17, tempo: '6:00', hr: '138–154' },
-]
-
-const FAZA_COLOR = { F1: '#3b82f6', F2: '#eab308', F3: '#ef4444', F4: '#22c55e' }
-const FAZA_LABEL = { F1: 'Faza 1 – Baza', F2: 'Faza 2 – Gradnja', F3: 'Faza 3 – Specifika', F4: 'Tapering' }
-const TODAY = new Date()
-const TODAY_STR = TODAY.toISOString().slice(0, 10)
-const YESTERDAY_STR = new Date(TODAY - 86400000).toISOString().slice(0, 10)
-
-function getCurrentTeden() {
-  for (let i = PLAN.length - 1; i >= 0; i--) { if (new Date(PLAN[i].datum) <= TODAY) return PLAN[i].teden }
-  return 1
-}
 
 function izracunajFormo(hrv, spanje, stres, workouts) {
   let score = 0; let factors = 0
@@ -101,77 +29,6 @@ function izracunajFormo(hrv, spanje, stres, workouts) {
   return Math.round((score/factors)*10)/10
 }
 
-// Pripravljenost na naslednji tek (0-100%)
-function izracunajPripravljenost(metrike, prehrana, workouts) {
-  const { atl, ctl, razmerje } = izracunajLoad(workouts)
-  const z = metrike[0] || {}
-  const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana[0] || {}
-  
-  let score = 0
-  let max = 0
-  
-  // HRV (30%)
-  if (z.hrv) {
-    max += 30
-    if (z.hrv >= 70) score += 30
-    else if (z.hrv >= 60) score += 25
-    else if (z.hrv >= 50) score += 20
-    else if (z.hrv >= 40) score += 12
-    else score += 5
-  }
-  
-  // Spanje (25%)
-  if (z.spanje_h) {
-    max += 25
-    if (z.spanje_h >= 8) score += 25
-    else if (z.spanje_h >= 7.5) score += 22
-    else if (z.spanje_h >= 7) score += 18
-    else if (z.spanje_h >= 6.5) score += 12
-    else if (z.spanje_h >= 6) score += 7
-    else score += 2
-  }
-  
-  // Stres (15%)
-  if (z.stres_povprecje) {
-    max += 15
-    if (z.stres_povprecje < 25) score += 15
-    else if (z.stres_povprecje < 35) score += 12
-    else if (z.stres_povprecje < 50) score += 8
-    else if (z.stres_povprecje < 65) score += 4
-    else score += 1
-  }
-  
-  // Prehrana včeraj - kalorije (15%)
-  if (vceraj.kalorije_skupaj) {
-    max += 15
-    const ratio = vceraj.kalorije_skupaj / CILJI.kcal
-    if (ratio >= 0.9 && ratio <= 1.2) score += 15
-    else if (ratio >= 0.8) score += 10
-    else if (ratio >= 0.7) score += 5
-    else score += 0
-  }
-  
-  // Prehrana včeraj - OH (15%)
-  if (vceraj.ogljikovi_hidrati_g) {
-    max += 15
-    const ratio = vceraj.ogljikovi_hidrati_g / CILJI.oh
-    if (ratio >= 0.9) score += 15
-    else if (ratio >= 0.75) score += 10
-    else if (ratio >= 0.6) score += 5
-    else score += 0
-  }
-  
-  // Load faktor (15%) - ATL/CTL razmerje
-  if (razmerje !== null) {
-    max += 15
-    if (razmerje >= 0.8 && razmerje <= 1.3) score += 15
-    else if (razmerje >= 0.6 && razmerje <= 1.5) score += 10
-    else score += 3
-  }
-
-  if (max === 0) return null
-  return Math.round((score / max) * 100)
-}
 
 
 // AI Analiza zadnjega teka
@@ -375,46 +232,6 @@ function izracunajPredikcijo(workouts, metrike) {
   return { casFinal, casVo2, casHR, zanesljivost, zanesljivostRazlogi, tezaKorekcija, kmKorekcija, prvicKorekcija, trend, tempoNa155, vo2Uporabljen, maxKm, steviloTekov: teki.length, zadnjaTeza }
 }
 
-// Opozorilo pred treningom
-function opozoriloPredTreningom(workouts, prehrana) {
-  const danes = TODAY
-  const jutri = new Date(danes)
-  jutri.setDate(jutri.getDate() + 1)
-  const jutriStr = jutri.toISOString().slice(0, 10)
-  
-  // Poišči jutrinji trening iz plana (po imenu ali datumu)
-  // Gremo po workoutu - check if any planned workout tomorrow
-  // Ker nimamo scheduled workouta, gledamo plan teden
-  const currentTeden = getCurrentTeden()
-  const planTeden = PLAN.find(p => p.teden === currentTeden)
-  const danVTednu = TODAY.getDay() // 0=ned, 1=pon...
-  
-  // Predpostavimo dolg tek ob koncu tedna
-  const jeJutriDolgiTek = danVTednu === 5 || danVTednu === 6 // petek ali sobota
-  
-  if (!jeJutriDolgiTek) return null
-  
-  const danes_preh = prehrana.find(p => p.datum === TODAY_STR)
-  if (!danes_preh) return null
-  
-  const ohDanes = danes_preh.ogljikovi_hidrati_g || 0
-  const kcalDanes = danes_preh.kalorije_skupaj || 0
-  const ohCilj = CILJI.oh
-  const kcalCilj = CILJI.kcal
-  
-  const msgs = []
-  if (ohDanes < ohCilj * 0.8) {
-    msgs.push(`pojej še vsaj ${Math.round(ohCilj - ohDanes)}g OH`)
-  }
-  if (kcalDanes < kcalCilj * 0.85) {
-    msgs.push(`dodaj ${Math.round(kcalCilj - kcalDanes)} kcal`)
-  }
-  
-  if (msgs.length > 0) {
-    return `🍝 Jutri dolg tek — ${msgs.join(' in ')}`
-  }
-  return null
-}
 
 
 export default function App() {
@@ -484,49 +301,6 @@ export default function App() {
 
 
 
-// ── LOAD IZRAČUN ─────────────────────────────────────────────────────────────
-function izracunajLoad(workouts) {
-  const danes = new Date()
-  
-  function loadZaDan(datum) {
-    const d = workouts.filter(w => w.datum === datum)
-    return d.reduce((s, w) => {
-      const te = w.aerobni_te || 1
-      const min = w.trajanje_min || 0
-      return s + Math.round(min * te)
-    }, 0)
-  }
-  
-  // ATL - zadnjih 7 dni
-  let atlSum = 0
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(danes - i * 86400000).toISOString().slice(0, 10)
-    atlSum += loadZaDan(d)
-  }
-  const atl = Math.round(atlSum / 7)
-  
-  // CTL - zadnjih 28 dni
-  let ctlSum = 0
-  for (let i = 0; i < 28; i++) {
-    const d = new Date(danes - i * 86400000).toISOString().slice(0, 10)
-    ctlSum += loadZaDan(d)
-  }
-  const ctl = Math.round(ctlSum / 28)
-  
-  // ATL/CTL razmerje
-  const razmerje = ctl > 0 ? Math.round((atl / ctl) * 100) / 100 : null
-  
-  let razmerjeOpis = '—'
-  let razmerjeColor = '#6b7280'
-  if (razmerje !== null) {
-    if (razmerje < 0.8) { razmerjeOpis = 'Premalo treniraš'; razmerjeColor = '#3b82f6' }
-    else if (razmerje <= 1.3) { razmerjeOpis = 'Optimalno'; razmerjeColor = '#22c55e' }
-    else if (razmerje <= 1.5) { razmerjeOpis = 'Visoka obremenitev'; razmerjeColor = '#eab308' }
-    else { razmerjeOpis = 'Nevarnost poškodbe'; razmerjeColor = '#ef4444' }
-  }
-  
-  return { atl, ctl, razmerje, razmerjeOpis, razmerjeColor }
-}
 
 // ── ANALIZA ZADNJEGA TEKA ─────────────────────────────────────────────────
 function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) {
@@ -676,26 +450,6 @@ function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) {
 
 
 // Helper za prikaz naslednjih 5 treningov
-function NaslednjihPetTreningov() {
-  const prihodnji = PLAN_TRENINGI.filter(p => p.datum > TODAY_STR).slice(0, 5)
-  if (prihodnji.length === 0) return null
-  return (
-    <>
-      <div style={{borderTop:'1px dashed #2d3748',margin:'12px 0'}}/>
-      <h3 style={{fontSize:11,fontWeight:500,color:'#64748b',textTransform:'uppercase',letterSpacing:'.8px',marginBottom:10}}>Naslednjih 5 treningov</h3>
-      <div className="workout-list">
-        {prihodnji.map((p,i)=>(
-          <div key={i} className="workout-item" style={{opacity:0.75}}>
-            <span className="date" style={{color:'#475569'}}>{p.datum.slice(5)}</span>
-            <span className="type" style={{color:'#64748b',fontStyle:'italic'}}>{p.naziv}</span>
-            <span className="detail" style={{color:'#475569'}}>{p.opis} · {p.km} km · {p.tempo}/km</span>
-            <span className="hr-badge" style={{background:'#1e243360',color:'#475569',border:'1px dashed #2d3748'}}>{p.hr}</span>
-          </div>
-        ))}
-      </div>
-    </>
-  )
-}
 
 
 // Tipi dni s privzetimi vrednostmi
@@ -889,161 +643,6 @@ function TabCilji({ prehranaCilji, onRefresh }) {
   </>)
 }
 
-function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],currentTeden,formaScore,predikcija}){
-  const planTeden=PLAN.find(p=>p.teden===currentTeden)
-  const tedStart=planTeden?new Date(planTeden.datum):new Date()
-  const tedEnd=new Date(tedStart);tedEnd.setDate(tedEnd.getDate()+7)
-  const kmTaTeden=workouts.filter(w=>{const d=new Date(w.datum);return d>=tedStart&&d<tedEnd&&isTek(w)}).reduce((s,w)=>s+(w.razdalja_km||0),0)
-  const z=metrike[0]||{}
-  const zadnjaTeza=metrike.find(m=>m.teza_kg)?.teza_kg
-  const pripravljenost = izracunajPripravljenost(metrike, prehrana, workouts)
-  const opozorilo = opozoriloPredTreningom(workouts, prehrana)
-  
-  // Kalorijski deficit/suficit
-  // Zadnji datum z MFP podatki (ne danes)
-  const zadnjiMfpDatum = prehrana
-    .filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR)
-    .sort((a,b) => b.datum.localeCompare(a.datum))[0]?.datum || YESTERDAY_STR
-  const skupniDatum = zadnjiMfpDatum
-  const vcerajPrehrana = prehrana.find(p => p.datum === skupniDatum) || {}
-  const vcerajMetrike = metrike.find(m => m.datum === skupniDatum) || {}
-  const vcerajWorkout = workouts.filter(w => w.datum === skupniDatum)
-  const aktivneKcalTrening = vcerajWorkout.reduce((s, w) => s + (w.kalorije || 0), 0)
-  // Uporabi vcerajMetrike (skupniDatum) - NE z (danes)
-  const pasivneKcal = vcerajMetrike.bmr_kcal || 1946
-  const aktivneKcalGarmin = vcerajMetrike.aktivne_kcal || 0
-  const skupajPorabljene = vcerajMetrike.skupaj_kcal || (pasivneKcal + aktivneKcalTrening)
-  const zauziteKcal = vcerajPrehrana.kalorije_skupaj || 0
-  const deficit = zauziteKcal - skupajPorabljene // skupaj_kcal ze vkljucuje trening
-  
-  // 7-dnevna mediana deficita
-  const zadnjih7 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 7)
-  const deficiti7 = zadnjih7.map(p => {
-    const w = workouts.filter(w2 => w2.datum === p.datum).reduce((s, w2) => s + (w2.kalorije || 0), 0)
-    return p.kalorije_skupaj - (pasivneKcal + w)
-  })
-  const medianaDeficit = deficiti7.length > 0 ? deficiti7.sort((a,b)=>a-b)[Math.floor(deficiti7.length/2)] : null
-
-  const alarms=[]
-  if (opozorilo) alarms.push({type:'opozorilo', msg: opozorilo})
-  if(z.hrv&&z.hrv<40)alarms.push({type:'warn',msg:'⚠️ HRV nizek ('+z.hrv+'ms) — razmisli o lažjem treningu danes'})
-  if(z.spanje_h&&z.spanje_h<6.5)alarms.push({type:'warn',msg:'⚠️ Malo spanja ('+fmt(z.spanje_h)+'h) — regeneracija trpi'})
-  if(zadnjaTeza&&planTeden&&zadnjaTeza>planTeden.ciljnaKg+1)alarms.push({type:'info',msg:`ℹ️ Teža (${fmt(zadnjaTeza)}kg) je ${fmt(zadnjaTeza-planTeden.ciljnaKg)}kg nad planom`})
-  if(formaScore&&formaScore<4)alarms.push({type:'warn',msg:`⚠️ Forma nizka (${fmt(formaScore)}/10) — premisli ali je danes trening smiseln`})
-  if(alarms.length===0)alarms.push({type:'ok',msg:'✅ Vse vrednosti v redu — nadaljuj po planu'})
-  
-  const kmPlan=planTeden?.km||0
-  const dniDoMaratona=Math.ceil((new Date('2026-10-17')-TODAY)/(1000*60*60*24))
-  const predCas = predikcija ? secToHMS(predikcija.casFinal) : null
-  const ciljSec = 3*3600+45*60
-  const diffSec = predikcija ? predikcija.casFinal - ciljSec : null
-
-  return(<>
-    {alarms.map((a,i)=><div key={i} className={`alert ${a.type}`}>{a.msg}</div>)}
-    
-    {/* Vrstica 1: Pripravljenost, Forma, KM, Teža, Dni */}
-    <div className="grid5" style={{marginBottom:16}}>
-      <div className="card">
-        <h3>Pripravljenost na tek</h3>
-        <div><span className="stat-val" style={{color:pripravljenostColor(pripravljenost)}}>{pripravljenost ? `${pripravljenost}%` : '—'}</span></div>
-        <div className="stat-sub" style={{color:pripravljenostColor(pripravljenost)}}>{pripravljenostLabel(pripravljenost)}</div>
-      </div>
-      <div className="card">
-        <h3>Forma danes</h3>
-        <div><span className="stat-val" style={{color:formaColor(formaScore)}}>{formaScore?fmt(formaScore):'—'}</span></div>
-        <div className="stat-sub" style={{color:formaColor(formaScore)}}>{formaLabel(formaScore)}</div>
-      </div>
-      <StatCard title="Km ta teden" value={fmt(kmTaTeden)} unit="km" sub={`plan: ${kmPlan} km`} color={kmTaTeden>=kmPlan?'#22c55e':'#f97316'}/>
-      <StatCard title="Zadnja teža" value={zadnjaTeza?fmt(zadnjaTeza):'—'} unit="kg" sub={planTeden?`cilj: ${planTeden.ciljnaKg} kg`:''}/>
-      <StatCard title="Dni do maratona" value={dniDoMaratona} sub="17. oktober 2026"/>
-    </div>
-
-    {/* Analiza zadnjega teka */}
-    {/* AI Analiza teka */}
-    {/* Load kartice */}
-    {(() => {
-      const { atl, ctl, razmerje, razmerjeOpis, razmerjeColor } = izracunajLoad(workouts)
-      return (
-        <div className="grid3" style={{marginBottom:16}}>
-          <div className="card">
-            <h3>Akutni Load — ATL (7 dni)</h3>
-            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
-              <span className="stat-val" style={{color: atl > 200 ? '#ef4444' : atl > 100 ? '#eab308' : '#22c55e'}}>{atl}</span>
-              <span style={{fontSize:12,color: atl > 200 ? '#ef4444' : atl > 100 ? '#eab308' : '#22c55e',fontWeight:500}}>{atl > 200 ? 'visok' : atl > 100 ? 'zmeren' : 'nizek'}</span>
-            </div>
-            <div className="stat-sub">kratkoročna utrujenost · optimalno: 80–150</div>
-          </div>
-          <div className="card">
-            <h3>Kronični Load — CTL (28 dni)</h3>
-            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
-              <span className="stat-val" style={{color: ctl < 30 ? '#6b7280' : ctl < 60 ? '#3b82f6' : '#22c55e'}}>{ctl}</span>
-              <span style={{fontSize:12,color: ctl < 30 ? '#6b7280' : ctl < 60 ? '#3b82f6' : '#22c55e',fontWeight:500}}>{ctl < 30 ? 'nizek' : ctl < 60 ? 'zmeren' : 'visok'}</span>
-            </div>
-            <div className="stat-sub">fitnes baza · višji = boljša baza</div>
-          </div>
-          <div className="card">
-            <h3>ATL/CTL Razmerje</h3>
-            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
-              <span className="stat-val" style={{color: razmerjeColor}}>{razmerje !== null ? razmerje.toFixed(2) : '—'}</span>
-              <span style={{fontSize:12,color: razmerjeColor,fontWeight:500}}>{razmerjeOpis}</span>
-            </div>
-            <div className="stat-sub">optimalno: 0.8–1.3 · &gt;1.5 = nevarnost</div>
-          </div>
-        </div>
-      )
-    })()}
-
-    {/* Kalorije: porabljene vs zaužite */}
-      <div className="card">
-        <h3>Kalorije <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({skupniDatum})</span></h3>
-        <div style={{display:'flex',gap:24,alignItems:'flex-start',marginBottom:8}}>
-          <div style={{flex:1}}>
-            <div style={{fontSize:11,color:'#64748b',marginBottom:4,textTransform:'uppercase',letterSpacing:'.5px'}}>Porabljene</div>
-            <div style={{fontSize:24,fontFamily:'DM Mono',fontWeight:300}}>{skupajPorabljene} <span style={{fontSize:12,color:'#64748b'}}>kcal</span></div>
-            <div style={{fontSize:11,color:'#475569',marginTop:4}}>
-              {vcerajMetrike.bmr_kcal ? `${vcerajMetrike.bmr_kcal} bazal + ${vcerajMetrike.aktivne_kcal||0} aktivne` : `~${pasivneKcal} bazal + ${aktivneKcalTrening} trening`}
-            </div>
-          </div>
-          <div style={{fontSize:20,color:'#2d3748',alignSelf:'center'}}>vs</div>
-          <div style={{flex:1}}>
-            <div style={{fontSize:11,color:'#64748b',marginBottom:4,textTransform:'uppercase',letterSpacing:'.5px'}}>Zaužite</div>
-            <div style={{fontSize:24,fontFamily:'DM Mono',fontWeight:300,color:zauziteKcal>0?'#e2e8f0':'#475569'}}>{zauziteKcal||'—'} <span style={{fontSize:12,color:'#64748b'}}>kcal</span></div>
-          </div>
-        </div>
-        {zauziteKcal > 0 && (
-          <div style={{padding:'8px 12px',borderRadius:6,background:deficit>0?'#052e1620':'#45180320',border:`1px solid ${deficit>0?'#14532d':'#78350f'}`,marginTop:8}}>
-            <span style={{fontFamily:'DM Mono',fontSize:14,fontWeight:500,color:deficit>0?'#86efac':'#fcd34d'}}>
-              {deficit>0?`+${Math.round(deficit)} kcal suficit`:`${Math.round(deficit)} kcal deficit`}
-            </span>
-          </div>
-        )}
-      </div>
-      <div className="card">
-        <h3>Kalorijski trend (mediana 7 dni)</h3>
-        {medianaDeficit !== null ? (
-          <div>
-            <div style={{fontSize:36,fontFamily:'DM Mono',fontWeight:200,color:medianaDeficit>0?'#22c55e':'#f97316'}}>
-              {medianaDeficit>0?'+':''}{Math.round(medianaDeficit)}
-              <span style={{fontSize:14,color:'#64748b',marginLeft:4}}>kcal/dan</span>
-            </div>
-            <div style={{fontSize:12,color:'#475569',marginTop:6}}>
-              {medianaDeficit>200?'Suficit — dober za ohranjanje energije':medianaDeficit>0?'Blagi suficit — ok':medianaDeficit>-300?'Blagi deficit — dober za izgubo teže':'Velik deficit — pazi na regeneracijo'}
-            </div>
-          </div>
-        ) : <div className="empty" style={{padding:8}}>Ni dovolj podatkov</div>}
-      </div>
-
-
-    <div className="card">
-      <h3>Zadnji 5 treningov</h3>
-      <div className="workout-list">
-        {workouts.slice(0,5).map((w,i)=>(<div key={i} className="workout-item"><span className="date">{w.datum?.slice(5)}</span><span className="type">{w.naziv||w.tip_treninga||'—'}</span><span className="detail">{fmt(w.razdalja_km)} km · {w.povprecni_tempo||'—'}/km · {fmt(w.trajanje_min,0)} min</span><span className="hr-badge" style={{background:hrZonaColor(w.povprecni_hr)+'22',color:hrZonaColor(w.povprecni_hr)}}>{w.povprecni_hr?`${w.povprecni_hr} bpm`:'—'}</span></div>))}
-        {workouts.length===0&&<div className="empty">Ni podatkov</div>}
-      </div>
-      <NaslednjihPetTreningov/>
-    </div>
-  </>)
-}
 
 function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefresh}){
   // Vedno prikaži včerajšnje podatke
