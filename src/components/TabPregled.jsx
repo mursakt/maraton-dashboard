@@ -39,7 +39,7 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
     const w = workouts.filter(w2 => w2.datum === p.datum).reduce((s, w2) => s + (w2.kalorije || 0), 0)
     return p.kalorije_skupaj - (pasivneKcal + w)
   })
-  const medianaDeficit = deficiti7.length > 0 ? deficiti7.sort((a,b)=>a-b)[Math.floor(deficiti7.length/2)] : null
+  const medianaDeficit = deficiti7.length > 0 ? deficiti7.reduce((s,v)=>s+v,0)/deficiti7.length : null
 
   const alarms=[]
   if (opozorilo) alarms.push({type:'opozorilo', msg: opozorilo})
@@ -136,7 +136,7 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
         )}
       </div>
       <div className="card" style={{marginBottom:16}}>
-        <h3>Kalorijski trend (mediana 7 dni)</h3>
+        <h3>Kalorijski trend (povprečje 7 dni)</h3>
         {medianaDeficit !== null ? (
           <div>
             <div style={{fontSize:36,fontFamily:'DM Mono',fontWeight:200,color:medianaDeficit>0?'#22c55e':'#f97316'}}>
