@@ -133,132 +133,17 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
       const a = zadnjiTek ? analizirajTek(zadnjiTek, laps, metrike, prehrana, workouts) : null
       if (!a) return null
 
-      const tempoSecToStr = sec => {
-        if (!sec) return '—'
-        return `${Math.floor(sec/60)}:${String(Math.round(sec%60)).padStart(2,'0')}`
-      }
-
-      let ocena = 'nevtralen'
-      let ocenaEmoji = '😐'
-      let ocenaColor = '#94a3b8'
-      const negativni = [
-        a.cardiacDrift > 12,
-        a.ohNaKg && a.ohNaKg < 3,
-        a.deficitVceraj && a.deficitVceraj < -400,
-        a.hrv && a.hrv < 45,
-        a.spanje && a.spanje < 6.5,
-        a.tempoDegradacija && a.tempoDegradacija > 20,
-      ].filter(Boolean).length
-      if (negativni >= 3) { ocena = 'težak'; ocenaEmoji = '😤'; ocenaColor = '#f97316' }
-      else if (negativni >= 1) { ocena = 'zmerno zahteven'; ocenaEmoji = '😮‍💨'; ocenaColor = '#eab308' }
-      else { ocena = 'lahek'; ocenaEmoji = '😊'; ocenaColor = '#22c55e' }
-
-      const tocke = []
-
-      if (a.prvLap?.povprecni_tempo) {
-        const barva = a.zacetniTempoOpis?.includes('prehitro') ? '#f97316' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `1. km: ${a.prvLap.povprecni_tempo}/km — ${a.zacetniTempoOpis || 'ok'}${a.zacetniTempoOpis?.includes('prehitro') ? '. Previsok začetni tempo je sprostil HR ki se ni mogel več zbiti nazaj.' : '.'}`
-        })
-      }
-
-      if (a.cardiacDrift !== null) {
-        const barva = a.cardiacDrift > 12 ? '#f97316' : a.cardiacDrift > 6 ? '#eab308' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `Cardiac drift: +${a.cardiacDrift} bpm (${a.driftOpis}) — HR v zadnji tretjini teka je bil ${a.cardiacDrift} bpm višji kot v prvi${a.cardiacDrift > 12 ? ', kar kaže na preobremenitev ali dehidracijo' : ''}.`
-        })
-      }
-
-      if (a.kriticniKm) {
-        tocke.push({
-          barva: '#f97316',
-          tekst: `Od ${a.kriticniKm}. km naprej je HR začel naraščati brez ustreznega izboljšanja tempa — telo je začelo delati nesorazmerno več za enak rezultat.`
-        })
-      }
-
-      if (a.tempoDegradacija !== null) {
-        const barva = a.tempoDegradacija > 15 ? '#f97316' : a.tempoDegradacija > 5 ? '#eab308' : '#22c55e'
-        const sign = a.tempoDegradacija > 0 ? '+' : ''
-        tocke.push({
-          barva,
-          tekst: `Tempo degradacija: ${sign}${a.tempoDegradacija} sek/km (${a.tempoDegOpis}) — prvi 3 km vs zadnji 3 km.`
-        })
-      }
-
-      if (a.ohNaKg !== null) {
-        const barva = a.ohNaKg < 3 ? '#ef4444' : a.ohNaKg < 5 ? '#eab308' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `Glikogen: ${a.ohDanPrej}g OH dan prej / ${a.tezaKg}kg = ${a.ohNaKg}g/kg — ${a.glikogenOpis}${a.ohNaKg < 3 ? '. Glikogen se izčrpa hitro, telo preide na maščobe ki so manj učinkovite.' : '.'}`
-        })
-      }
-
-      if (a.deficitVceraj !== null) {
-        const barva = a.deficitVceraj < -400 ? '#ef4444' : a.deficitVceraj < -200 ? '#eab308' : '#22c55e'
-        const defStr = a.deficitVceraj > 0 ? `+${a.deficitVceraj} kcal suficit` : `${a.deficitVceraj} kcal deficit`
-        const deficit7Str = a.povprecniDeficit7 !== null ? ` V zadnjih 7 dneh povprečno ${a.povprecniDeficit7 > 0 ? '+' : ''}${a.povprecniDeficit7} kcal/dan.` : ''
-        let defKomentar = ''
-        if (a.deficitVceraj !== null) {
-          if (a.deficitVceraj < -600) defKomentar = ' Velik deficit — mišice in glikogen so bili slabo dopolnjeni.'
-          else if (a.deficitVceraj < -300) defKomentar = ' Zmeren deficit — regeneracija bila omejena.'
-          else if (a.deficitVceraj < 0) defKomentar = ' Blagi deficit — ni kritično.'
-          else defKomentar = ' Suficit — dobro za regeneracijo.'
-        }
-        tocke.push({
-          barva,
-          tekst: `Kalorije dan prej: ${defStr} (zaužito ${Math.round(a.prehranaVceraj.kalorije_skupaj || 0)} kcal).${defKomentar}${deficit7Str}`
-        })
-      }
-
-      if (a.hrv || a.spanje) {
-        const hrv = a.hrv ? `HRV ${a.hrv}ms${a.hrv < 45 ? ' — nizek, telo ni bilo regenerirano' : ' — ok'}` : ''
-        const spanje = a.spanje ? `spanje ${fmt(a.spanje)}h${a.spanje < 6.5 ? ' — premalo' : ' — ok'}` : ''
-        const barva = (a.hrv && a.hrv < 45) || (a.spanje && a.spanje < 6.5) ? '#eab308' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `Regeneracija dan prej: ${[hrv, spanje].filter(Boolean).join(', ')}.`
-        })
-      }
-
-      if (a.te) {
-        const barva = a.te >= 4 ? '#f97316' : a.te >= 3 ? '#3b82f6' : '#22c55e'
-        tocke.push({
-          barva,
-          tekst: `Training Effect: ${fmt(a.te, 1)} — ${a.teOpis}.`
-        })
-      }
-
       return (
         <div className="card" style={{marginBottom:16}}>
           <h3>Analiza zadnjega teka</h3>
-          <div style={{display:'flex',gap:16,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+          <div style={{display:'flex',gap:16,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
             <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{a.tek.naziv}</span>
             <span style={{fontFamily:'DM Mono',fontSize:13,color:'#64748b'}}>{a.tek.datum}</span>
             <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{fmt(a.tek.razdalja_km)} km</span>
             <span style={{fontFamily:'DM Mono',fontSize:13,color:hrZonaColor(a.tek.povprecni_hr)}}>{a.tek.povprecni_hr} avg · {a.tek.max_hr} max bpm</span>
-            <span style={{fontSize:13,padding:'2px 10px',borderRadius:4,background:ocenaColor+'22',color:ocenaColor,fontWeight:600}}>{ocenaEmoji} {ocena}</span>
           </div>
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Subjektivna ocena teka</div>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {OCENE.map(o => {
-                const current = getOcena(zadnjiTek)
-                const active = current === o.key
-                return (
-                  <button key={o.key} onClick={() => saveOcena(zadnjiTek.id, o.key)} style={{padding:'5px 14px',borderRadius:4,border:`1px solid ${active ? o.color : '#334155'}`,background:active ? o.color+'33' : '#1e2d3d',color:active ? o.color : '#94a3b8',fontSize:12,cursor:'pointer',fontFamily:'DM Mono'}}>{o.label}</button>
-                )
-              })}
-            </div>
-          </div>
-          {tocke.map((t, i) => (
-            <div key={i} style={{display:'flex',gap:10,padding:'8px 12px',borderRadius:6,marginBottom:6,background:'#0f172a',borderLeft:`3px solid ${t.barva}`,fontSize:13,color:'#94a3b8',alignItems:'flex-start'}}>
-              <span style={{lineHeight:1.5}}>{t.tekst}</span>
-            </div>
-          ))}
           {a.lapi.length > 0 && (
-            <div style={{marginTop:12}}>
+            <div style={{marginBottom:14}}>
               <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>HR in tempo po km</div>
               <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
                 {a.lapi.map((l, i) => (
@@ -271,7 +156,19 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               </div>
             </div>
           )}
-          <div style={{marginTop:16,borderTop:'1px solid #1e2433',paddingTop:14}}>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Subjektivna ocena teka</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {OCENE.map(o => {
+                const current = getOcena(zadnjiTek)
+                const active = current === o.key
+                return (
+                  <button key={o.key} onClick={() => saveOcena(zadnjiTek.id, o.key)} style={{padding:'5px 14px',borderRadius:4,border:`1px solid ${active ? o.color : '#334155'}`,background:active ? o.color+'33' : '#1e2d3d',color:active ? o.color : '#94a3b8',fontSize:12,cursor:'pointer',fontFamily:'DM Mono'}}>{o.label}</button>
+                )
+              })}
+            </div>
+          </div>
+          <div style={{borderTop:'1px solid #1e2433',paddingTop:14}}>
             <button
               onClick={() => fetchAiAnaliza(zadnjiTek)}
               disabled={aiLoading}
@@ -285,7 +182,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                 {aiAnaliza.split('\n').map((line, i) => {
                   const isHeader = line.startsWith('**')
                   return (
-                    <div key={i} style={{fontSize:isHeader?11:13,fontWeight:isHeader?600:400,color:isHeader?'#e2e8f0':'#94a3b8',marginTop:isHeader?12:2,lineHeight:1.65,letterSpacing:isHeader?'.5px':0,textTransform:isHeader?'none':'none'}}>
+                    <div key={i} style={{fontSize:isHeader?11:13,fontWeight:isHeader?600:400,color:isHeader?'#e2e8f0':'#94a3b8',marginTop:isHeader?12:2,lineHeight:1.65}}>
                       {line.replace(/\*\*/g,'')}
                     </div>
                   )
@@ -296,8 +193,6 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
         </div>
       )
     })()}
-
-    <AnalizaTeka workouts={workouts} metrike={metrike} prehrana={prehrana}/>
 
     <div className="card" style={{marginBottom:16}}>
       <h3>Km po tednih (samo teki)</h3>
