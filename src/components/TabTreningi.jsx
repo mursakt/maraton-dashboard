@@ -78,6 +78,38 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
     return result
   }, [workouts])
 
+  const [aiAnaliza, setAiAnaliza] = React.useState(null)
+  const [aiLoading, setAiLoading] = React.useState(false)
+  const [aiError, setAiError] = React.useState(null)
+
+  const fetchAiAnaliza = async (zadnjiTek) => {
+    setAiLoading(true)
+    setAiError(null)
+    setAiAnaliza(null)
+    try {
+      const vcerajStr = new Date(new Date(zadnjiTek.datum) - 86400000).toISOString().slice(0, 10)
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          tek: zadnjiTek,
+          lapi: laps.filter(l => l.datum === zadnjiTek.datum),
+          metrikeVceraj: metrike.find(m => m.datum === vcerajStr) || {},
+          prehranaVceraj: prehrana.find(p => p.datum === vcerajStr) || {},
+          zadnjih10Treningov: workouts.slice(0, 10),
+          subjektivnaOcena: getOcena(zadnjiTek),
+        })
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setAiAnaliza(data.analiza)
+    } catch (e) {
+      setAiError(e.message)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   return(<>
     <div className="grid4">
       <StatCard title="Skupaj km (teki)" value={fmt(totalKm,0)} unit="km"/>
@@ -239,6 +271,28 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               </div>
             </div>
           )}
+          <div style={{marginTop:16,borderTop:'1px solid #1e2433',paddingTop:14}}>
+            <button
+              onClick={() => fetchAiAnaliza(zadnjiTek)}
+              disabled={aiLoading}
+              style={{padding:'7px 18px',borderRadius:6,border:'1px solid #6366f1',background:aiLoading?'#1e2433':'#6366f122',color:aiLoading?'#475569':'#a5b4fc',fontSize:13,cursor:aiLoading?'default':'pointer',fontFamily:'DM Mono',fontWeight:500}}
+            >
+              {aiLoading ? '⏳ Analiziram...' : '🤖 Analiziraj z AI'}
+            </button>
+            {aiError && <div style={{marginTop:10,fontSize:12,color:'#f87171',fontFamily:'DM Mono'}}>{aiError}</div>}
+            {aiAnaliza && (
+              <div style={{marginTop:12}}>
+                {aiAnaliza.split('\n').map((line, i) => {
+                  const isHeader = line.startsWith('**')
+                  return (
+                    <div key={i} style={{fontSize:isHeader?11:13,fontWeight:isHeader?600:400,color:isHeader?'#e2e8f0':'#94a3b8',marginTop:isHeader?12:2,lineHeight:1.65,letterSpacing:isHeader?'.5px':0,textTransform:isHeader?'none':'none'}}>
+                      {line.replace(/\*\*/g,'')}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )
     })()}
