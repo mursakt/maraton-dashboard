@@ -5,6 +5,34 @@ import { fmt } from '../utils/helpers'
 import { ProgressBar } from './ProgressBar'
 
 export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefresh}){
+  const [aiAnaliza, setAiAnaliza] = React.useState(null)
+  const [aiLoading, setAiLoading] = React.useState(false)
+  const [aiError, setAiError] = React.useState(null)
+
+  const fetchAiPrehrana = async () => {
+    setAiLoading(true)
+    setAiError(null)
+    setAiAnaliza(null)
+    try {
+      const res = await fetch('/api/analyze-prehrana', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prehrana30: prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 30),
+          metrike30: metrike.slice(0, 30),
+          workouts30: workouts.slice(0, 30),
+          cilji: CILJI,
+        })
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setAiAnaliza(data.analiza)
+    } catch (e) {
+      setAiError(e.message)
+    } finally {
+      setAiLoading(false)
+    }
+  }
   // Vedno prikaži včerajšnje podatke
   const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.filter(p => p.kalorije_skupaj > 0)[0] || {}
 
@@ -419,6 +447,39 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
         </div>
       )
     })()}
+
+    <div className="card" style={{marginBottom:16}}>
+      <h3>AI analiza prehranjevalnih trendov</h3>
+      <div style={{fontSize:12,color:'#475569',marginBottom:12}}>Sistematična analiza vseh metrik — kalorije, makri, korelacija z regeneracijo in teki, trendi 7 vs 30 dni.</div>
+      <button
+        onClick={fetchAiPrehrana}
+        disabled={aiLoading}
+        style={{padding:'7px 18px',borderRadius:6,border:'1px solid #6366f1',background:aiLoading?'#1e2433':'#6366f122',color:aiLoading?'#475569':'#a5b4fc',fontSize:13,cursor:aiLoading?'default':'pointer',fontFamily:'DM Mono',fontWeight:500}}
+      >
+        {aiLoading ? '⏳ Analiziram...' : '🤖 Analiziraj prehrano'}
+      </button>
+      {aiError && <div style={{marginTop:10,fontSize:12,color:'#f87171',fontFamily:'DM Mono'}}>{aiError}</div>}
+      {aiAnaliza && (
+        <div style={{marginTop:14}}>
+          {aiAnaliza.split('\n').map((line, i) => {
+            const isHeader = line.startsWith('**')
+            const isEmpty = line.trim() === ''
+            return (
+              <div key={i} style={{
+                fontSize: isHeader ? 11 : 13,
+                fontWeight: isHeader ? 600 : 400,
+                color: isHeader ? '#e2e8f0' : '#94a3b8',
+                marginTop: isHeader ? 14 : isEmpty ? 4 : 2,
+                lineHeight: 1.65,
+                letterSpacing: isHeader ? '.5px' : 0,
+              }}>
+                {line.replace(/\*\*/g, '')}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   </>)
 
 }
