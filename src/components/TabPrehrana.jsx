@@ -168,13 +168,23 @@ function NastavitveHrane({ prioritete, setPrioriteta, resetAll }) {
 
 const OBROKI_DEF = [
   { id:'zajtrk',    naziv:'Zajtrk',    cas:'7:00',  ikona:'🌅', pct:0.25,
-    preferred: new Set(['Ovseni kosmiči 80g','Skyr 200g','Jajca 3 kos','Banana','Grški jogurt 200g','Avokado ½']) },
+    preferred: new Set(['Ovseni kosmiči 80g','Skyr 200g','Jajca 3 kos','Banana','Grški jogurt 200g','Avokado ½',
+      'Skuta 200g','Kefir 250ml','Polnozrnati kruh 2 rezini','Jabolko','Pomaranča','Kivi 2 kos',
+      'Orehi 30g','Lan semena 15g','Chia semena 15g','Med 20g','Mozzarella 80g','Mleko posneto 250ml']) },
   { id:'kosilo',    naziv:'Kosilo',    cas:'12:30', ikona:'☀️', pct:0.35,
-    preferred: new Set(['Piščančje prsi 150g','Riž kuhan 200g','Tuna v vodi 150g','Leča kuhana 200g','Brokoli 200g','Fižol kuhan 200g','Sladki krompir 200g','Korenček 150g']) },
+    preferred: new Set(['Piščančje prsi 150g','Riž kuhan 200g','Tuna v vodi 150g','Leča kuhana 200g','Brokoli 200g','Fižol kuhan 200g','Sladki krompir 200g','Korenček 150g',
+      'Piščančja bedra 150g','Goveje meso 150g','Svinjski file 150g','Kozice 150g','Skuša 100g',
+      'Kvinoja kuhana 200g','Ajdova kaša 150g','Krompir kuhan 200g','Čičerika kuhana 200g','Zeleni grah 150g',
+      'Brstični ohrovt 150g','Cvetača 200g','Bučke 200g','Paradižnik 200g','Zelje 200g']) },
   { id:'prigrizek', naziv:'Prigrizek', cas:'15:30', ikona:'🍎', pct:0.10,
-    preferred: new Set(['Mandlji 30g','Banana','Avokado ½','Skyr 200g','Grški jogurt 200g']) },
+    preferred: new Set(['Mandlji 30g','Banana','Avokado ½','Skyr 200g','Grški jogurt 200g',
+      'Jabolko','Pomaranča','Jagode 150g','Borovnice 100g','Kivi 2 kos',
+      'Indijski oreški 30g','Buče semena 30g','Temna čokolada 30g','Skuta 200g','Kefir 250ml']) },
   { id:'vecerja',   naziv:'Večerja',   cas:'18:30', ikona:'🌙', pct:0.30,
-    preferred: new Set(['Losos 150g','Sardine 100g','Tofu 150g','Testenine polnozrnate 200g','Špinača 150g','Rdeča paprika 150g','Sir gouda 30g']) },
+    preferred: new Set(['Losos 150g','Sardine 100g','Tofu 150g','Testenine polnozrnate 200g','Špinača 150g','Rdeča paprika 150g','Sir gouda 30g',
+      'Piščančja bedra 150g','Skuša 100g','Goveje meso 150g','Svinjski file 150g','Kozice 150g',
+      'Kvinoja kuhana 200g','Ajdova kaša 150g','Paradižnik 200g','Bučke 200g','Zelje 200g',
+      'Mozzarella 80g','Brstični ohrovt 150g','Cvetača 200g']) },
 ]
 
 function PredlogObroka({ mikro, danes, cilj, prioritete, setPrioriteta, resetAll }) {
