@@ -64,43 +64,36 @@ function PredlogObroka({ mikro, danes, cilj }) {
     const mikroDefLabels = { že:'železo', ka:'kalij', ca:'kalcij', vc:'vitamin C', va:'vitamin A', vl:'vlaknine' }
     const holesterolVisok = mikro.holesterol && mikro.holesterol > 400
 
-    // Score foods
-    const scored = HRANA_DB.map(h => {
+    // Greedy loop — re-score after each pick based on what's still remaining
+    const meal = []
+    let rk = r.kcal, rb = r.belj, ro = r.oh, rm = r.masc
+
+    const scoreFood = (h) => {
       let s = 0
-      // Macro contribution (how much of remaining need does this cover?)
-      if (r.belj > 0) s += Math.min(1, h.b / r.belj) * 35
-      if (r.oh   > 0) s += Math.min(1, h.o / r.oh)   * 25
-      if (r.masc > 0) s += Math.min(1, h.m / r.masc)  * 10
-      // Calorie fit: ideal 25–75% of remaining
-      if (r.kcal > 0) {
-        const ratio = h.k / r.kcal
-        s += ratio >= 0.2 && ratio <= 0.8 ? 15 : ratio > 1.3 ? -25 : 5
-      }
-      // Micro bonus
+      if (rb > 5)  s += Math.min(1, h.b / rb) * 35
+      if (ro > 10) s += Math.min(1, h.o / ro) * 25
+      if (rm > 5)  s += Math.min(1, h.m / rm) * 10
+      const ratio = rk > 0 ? h.k / rk : 0
+      s += ratio >= 0.1 && ratio <= 0.85 ? 20 : ratio > 1.4 ? -30 : 5
       mikroDef.forEach(md => {
         const contrib = (h[md.key]||0) / MIKRO_CILJI_DB[md.key]
         if (contrib > 0) s += contrib * (md.urgent ? 55 : 30)
       })
-      // Holesterol penalty
       if (holesterolVisok && h.ho > 200) s -= 30
-      return { ...h, s }
-    }).sort((a, b) => b.s - a.s)
-
-    // Greedy meal selection (up to 3 foods)
-    const meal = []
-    let rk = r.kcal, rb = r.belj, ro = r.oh, rm = r.masc
-
-    const add = h => { meal.push(h); rk -= h.k; rb -= h.b; ro -= h.o; rm -= h.m }
-
-    add(scored[0])
-    if (rk > 150) {
-      const s2 = scored.slice(1).find(h => !meal.includes(h) && h.k <= rk * 1.4)
-      if (s2) add(s2)
+      return s
     }
-    if (mikroDef.length > 0 && meal.length < 3 && rk > 20) {
-      const s3 = scored.find(h => !meal.includes(h) && h.k <= Math.max(rk, 80) * 1.3 && mikroDef.some(md => (h[md.key]||0) > 0))
-      if (s3) add(s3)
+
+    while (rk > 100 && meal.length < 5) {
+      const next = HRANA_DB
+        .filter(h => !meal.includes(h))
+        .map(h => ({ ...h, s: scoreFood(h) }))
+        .sort((a, b) => b.s - a.s)[0]
+      if (!next) break
+      if (next.k > rk * 1.6 && meal.length > 0) break
+      meal.push(next)
+      rk -= next.k; rb -= next.b; ro -= next.o; rm -= next.m
     }
+    if (meal.length === 0) meal.push(HRANA_DB[0])
 
     const tot = meal.reduce((acc, h) => ({
       k:   acc.k+h.k,   b:  acc.b+h.b,   o:  acc.o+h.o,   m:   acc.m+h.m,
