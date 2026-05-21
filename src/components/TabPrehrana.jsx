@@ -5,34 +5,6 @@ import { fmt } from '../utils/helpers'
 import { ProgressBar } from './ProgressBar'
 
 export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefresh}){
-  const [aiAnaliza, setAiAnaliza] = React.useState(null)
-  const [aiLoading, setAiLoading] = React.useState(false)
-  const [aiError, setAiError] = React.useState(null)
-
-  const fetchAiPrehrana = async () => {
-    setAiLoading(true)
-    setAiError(null)
-    setAiAnaliza(null)
-    try {
-      const res = await fetch('/api/analyze-prehrana', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          prehrana30: prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 30),
-          metrike30: metrike.slice(0, 30),
-          workouts30: workouts.slice(0, 30),
-          cilji: CILJI,
-        })
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      setAiAnaliza(data.analiza)
-    } catch (e) {
-      setAiError(e.message)
-    } finally {
-      setAiLoading(false)
-    }
-  }
   // Vedno prikaži včerajšnje podatke
   const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.filter(p => p.kalorije_skupaj > 0)[0] || {}
 
@@ -81,14 +53,134 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
   })
 
   // Analiza trendov
-  const trendi = []
-  if (avgKcal > 0 && avgKcal < CILJI.kcal * 0.85) trendi.push({ tip: 'warn', msg: `Povprečne kalorije (${Math.round(avgKcal)} kcal) so ${Math.round(CILJI.kcal - avgKcal)} kcal pod ciljem — tveganje premalo energije za treninge.` })
-  if (avgBelj > 0 && avgBelj < CILJI.belj * 0.85) trendi.push({ tip: 'warn', msg: `Beljakovine v povprečju ${Math.round(avgBelj)}g — pod ciljem ${CILJI.belj}g. Regeneracija mišic bo slabša.` })
-  if (avgOH > 0 && avgOH < CILJI.oh * 0.8) trendi.push({ tip: 'warn', msg: `OH v povprečju ${Math.round(avgOH)}g — pod ciljem ${CILJI.oh}g. Glikogenske rezerve bodo nizke pred teki.` })
-  if (avgKcal > CILJI.kcal * 1.15) trendi.push({ tip: 'info', msg: `Povprečne kalorije (${Math.round(avgKcal)} kcal) so nad ciljem — ok za dneve s teki, pazi na dneve brez.` })
-  if (avgBelj >= CILJI.belj * 0.95) trendi.push({ tip: 'ok', msg: `Beljakovine v redu — ${Math.round(avgBelj)}g povprečno, cilj ${CILJI.belj}g. Dobra regeneracija.` })
-  if (avgOH >= CILJI.oh * 0.9) trendi.push({ tip: 'ok', msg: `OH v redu — ${Math.round(avgOH)}g povprečno. Glikogenske rezerve optimalne.` })
-  if (trendi.length === 0) trendi.push({ tip: 'ok', msg: 'Prehrana v redu — nadaljuj po planu.' })
+  // ===== RULE-BASED ANALIZA =====
+  const z30 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 30)
+  const avg30Kcal = z30.reduce((s,p,_,a) => s + p.kalorije_skupaj/a.length, 0) || 0
+  const avg30Belj = z30.reduce((s,p,_,a) => s + p.beljakovine_g/a.length, 0) || 0
+  const avg30OH   = z30.reduce((s,p,_,a) => s + p.ogljikovi_hidrati_g/a.length, 0) || 0
+
+  const trendStr = (v7, v30) => {
+    if (!v7 || !v30) return ''
+    if (v7 > v30 * 1.05) return ' ↑'
+    if (v7 < v30 * 0.95) return ' ↓'
+    return ' →'
+  }
+  const pc = (v, c) => Math.round(v / c * 100)
+
+  const z7mikro = z7.filter(p => p.natrij_mg > 0)
+  const avgM = key => { const v = z7mikro.map(p => p[key]).filter(v => v > 0); return v.length ? v.reduce((s,x) => s+x,0)/v.length : null }
+  const mikro = {
+    natrij: avgM('natrij_mg'), kalij: avgM('kalij_mg'), vlaknine: avgM('vlaknine_g'),
+    sladkorji: avgM('sladkorji_g'), vitamin_c: avgM('vitamin_c_mg'), železo: avgM('železo_mg'),
+  }
+
+  const kritično = [], opozorila = [], vRedu = []
+
+  // Kalorije
+  if (avgKcal > 0) {
+    const p = pc(avgKcal, CILJI.kcal), t = trendStr(avgKcal, avg30Kcal)
+    if (p < 75) kritično.push({ naziv: 'Kalorije', msg: `${Math.round(avgKcal)} kcal = ${p}% cilja${t}. Deficit ${Math.round(CILJI.kcal-avgKcal)} kcal/dan → telo razgrajuje mišično tkivo, regeneracija trpi.`, fix: `Dodaj: riž 200g = 260kcal, ovseni kosmiči 80g = 300kcal, orehi 30g = 200kcal.` })
+    else if (p < 90) opozorila.push({ naziv: 'Kalorije', msg: `${Math.round(avgKcal)} kcal = ${p}% cilja${t}. Na dneve z gibi podhranjeno.`, fix: `Dodaj ~${Math.round(CILJI.kcal-avgKcal)} kcal: banana + orehi + skyr = ~350 kcal.` })
+    else if (p > 115) opozorila.push({ naziv: 'Kalorije — suficit', msg: `${Math.round(avgKcal)} kcal = ${p}% cilja${t}. +${Math.round(avgKcal-CILJI.kcal)} kcal/dan.`, fix: 'Zmanjšaj maščobe in sladkorje na počivalne dni.' })
+    else vRedu.push(`Kalorije ${Math.round(avgKcal)} kcal (${p}%)`)
+  }
+  // Beljakovine
+  if (avgBelj > 0) {
+    const p = pc(avgBelj, CILJI.belj), t = trendStr(avgBelj, avg30Belj)
+    const gkg = Math.round(avgBelj/80*10)/10
+    if (p < 75) kritično.push({ naziv: 'Beljakovine', msg: `${Math.round(avgBelj)}g = ${p}% cilja${t} (${gkg}g/kg). Pod 1.4g/kg → mišice se razgrajujejo po tekih namesto gradijo.`, fix: `Piščančje prsi 200g = 50g, skyr 200g = 20g, tuna 150g = 35g, jajca 3× = 18g.` })
+    else if (p < 90) opozorila.push({ naziv: 'Beljakovine', msg: `${Math.round(avgBelj)}g = ${p}% cilja${t} (${gkg}g/kg). Regeneracija suboptimalna.`, fix: `Dodaj ~${Math.round(CILJI.belj-avgBelj)}g/dan: skyr 200g ali piščanec 150g.` })
+    else vRedu.push(`Beljakovine ${Math.round(avgBelj)}g (${p}%)`)
+  }
+  // OH
+  if (avgOH > 0) {
+    const p = pc(avgOH, CILJI.oh), t = trendStr(avgOH, avg30OH)
+    if (p < 70) kritično.push({ naziv: 'Ogljikovi hidrati', msg: `${Math.round(avgOH)}g = ${p}% cilja${t} (${Math.round(avgOH/80*10)/10}g/kg). Glikogen kronično izpraznjen → teki napornejši, okrevanje počasnejše.`, fix: `Riž 200g = 52g, testenine 200g = 60g, ovseni kosmiči 80g = 52g, krompir 200g = 36g.` })
+    else if (p < 85) opozorila.push({ naziv: 'Ogljikovi hidrati', msg: `${Math.round(avgOH)}g = ${p}% cilja${t}. Dan pred tekom moraš biti nad ${CILJI.oh}g.`, fix: `Banana + riž + kruh = +${Math.round(CILJI.oh-avgOH)}g OH.` })
+    else vRedu.push(`OH ${Math.round(avgOH)}g (${p}%)`)
+  }
+  // Maščobe
+  if (avgMasc > 0) {
+    const p = pc(avgMasc, CILJI.masc)
+    if (p < 60) opozorila.push({ naziv: 'Maščobe', msg: `${Math.round(avgMasc)}g = ${p}% cilja. Slabša absorpcija vitaminov A/D/E/K, hormonske motnje.`, fix: 'Avokado ½ = 15g, olivno olje 1 žlica = 14g, orehi 30g = 18g.' })
+    else if (p > 140) opozorila.push({ naziv: 'Maščobe — presežek', msg: `${Math.round(avgMasc)}g = ${p}% cilja. Izpodriva prostor za OH — primarni vir energije za maraton.`, fix: 'Zmanjšaj ocvrto hrano in predelane snacke.' })
+    else vRedu.push(`Maščobe ${Math.round(avgMasc)}g (${p}%)`)
+  }
+  // Mikrohranila
+  if (z7mikro.length >= 2) {
+    const mikroDef = [
+      { key:'železo',    naziv:'Železo',     cilj:18,   enota:'mg', kritPct:55, opoPct:75,
+        msg:(p,v) => `${Math.round(v*10)/10}mg = ${p}% cilja (18mg). Anemija znižuje kapaciteto O₂ — neposreden vpliv na vzdržljivost.`,
+        hrana:'Goveja jetra 100g = 6mg, leča 200g = 7mg, špinača 200g = 5mg. Z vit. C poveča absorpcijo 3×.' },
+      { key:'kalij',     naziv:'Kalij',      cilj:3500, enota:'mg', kritPct:50, opoPct:70,
+        msg:(p,v) => `${Math.round(v)}mg = ${p}% cilja (3500mg). Mišični krči, motnje srčnega ritma med dolgimi teki.`,
+        hrana:'Sladki krompir 200g = 700mg, avokado 150g = 700mg, fižol 200g = 1000mg, banana = 420mg.',
+        presežekPct:150, presežekMsg:(p,v) => `${Math.round(v)}mg = ${p}% cilja. Neravnovesje z natrijem → motnje ritma pri ekstremnih naporih.` },
+      { key:'vlaknine',  naziv:'Vlaknine',   cilj:30,   enota:'g',  kritPct:40, opoPct:65,
+        msg:(p,v) => `${Math.round(v*10)/10}g = ${p}% cilja (30g). Slabša prebava, počasnejše sproščanje energije.`,
+        hrana:'Ovseni kosmiči 80g = 8g, leča 200g = 8g, polnozrnati kruh 2r = 4g, jabolko = 4g.',
+        presežekPct:200, presežekMsg:(p,v) => `${Math.round(v)}g = ${p}% cilja. Pazi dan pred tekom — GI težave med tekom.` },
+      { key:'vitamin_c', naziv:'Vitamin C',  cilj:90,   enota:'mg', kritPct:40, opoPct:65,
+        msg:(p,v) => `${Math.round(v)}mg = ${p}% cilja (90mg). Slabša absorpcija železa in imunska funkcija.`,
+        hrana:'Rdeča paprika 100g = 140mg, pomaranča = 70mg, brokoli 100g = 90mg, jagode 150g = 85mg.' },
+      { key:'natrij',    naziv:'Natrij',     cilj:2300, enota:'mg', kritPct:null, opoPct:null,
+        presežekPct:150, presežekMsg:(p,v) => `${Math.round(v)}mg = ${p}% cilja (2300mg). Zadržavanje vode, višji krvni tlak, slabša ekonomičnost teka.` },
+      { key:'sladkorji', naziv:'Sladkorji',  cilj:50,   enota:'g',  kritPct:null, opoPct:null,
+        presežekPct:150, presežekMsg:(p,v) => `${Math.round(v)}g = ${p}% cilja (50g). Nihanje krvnega sladkorja → energijski padci med tekom.` },
+    ]
+    mikroDef.forEach(m => {
+      const v = mikro[m.key]; if (!v) return
+      const p = pc(v, m.cilj)
+      if (m.kritPct && p < m.kritPct) kritično.push({ naziv: m.naziv, msg: m.msg(p, v), fix: m.hrana })
+      else if (m.opoPct && p < m.opoPct) opozorila.push({ naziv: m.naziv, msg: m.msg(p, v), fix: m.hrana })
+      else if (m.presežekPct && p > m.presežekPct) opozorila.push({ naziv: `${m.naziv} — presežek`, msg: m.presežekMsg(p, v), fix: null })
+      else if (m.kritPct) vRedu.push(`${m.naziv} ${Math.round(v*10)/10}${m.enota} (${p}%)`)
+    })
+  }
+
+  // Vzorci iz podatkov
+  const vzorci = []
+  const tekiZOH = workouts.filter(w => w.razdalja_km > 5 && w.povprecni_hr).slice(0, 15).map(w => {
+    const vd = new Date(new Date(w.datum).getTime()-86400000).toISOString().slice(0,10)
+    const p = prehrana.find(p2 => p2.datum === vd)
+    return p?.ogljikovi_hidrati_g ? { oh: p.ogljikovi_hidrati_g, hr: w.povprecni_hr } : null
+  }).filter(Boolean)
+  if (tekiZOH.length >= 4) {
+    const s = [...tekiZOH].sort((a,b) => a.oh-b.oh)
+    const sp = s.slice(0,Math.floor(s.length/2)), zg = s.slice(Math.ceil(s.length/2))
+    const hr1 = Math.round(sp.reduce((a,d)=>a+d.hr,0)/sp.length)
+    const hr2 = Math.round(zg.reduce((a,d)=>a+d.hr,0)/zg.length)
+    const oh1 = Math.round(sp.reduce((a,d)=>a+d.oh,0)/sp.length)
+    const oh2 = Math.round(zg.reduce((a,d)=>a+d.oh,0)/zg.length)
+    if (Math.abs(hr1-hr2) >= 3) vzorci.push(`OH dan prej: ko ~${oh1}g → avg HR ${hr1}bpm na teku | ko ~${oh2}g → ${hr2}bpm (${Math.abs(hr1-hr2)}bpm razlika, ${tekiZOH.length} tekov)`)
+  }
+  const kcalHRV = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0,20).map(p => {
+    const jutri = new Date(new Date(p.datum).getTime()+86400000).toISOString().slice(0,10)
+    const m = metrike.find(m2 => m2.datum===jutri)
+    return m?.hrv ? { kcal: p.kalorije_skupaj, hrv: m.hrv } : null
+  }).filter(Boolean)
+  if (kcalHRV.length >= 5) {
+    const s = [...kcalHRV].sort((a,b) => a.kcal-b.kcal)
+    const sp = s.slice(0,Math.floor(s.length/2)), zg = s.slice(Math.ceil(s.length/2))
+    const h1 = Math.round(sp.reduce((a,d)=>a+d.hrv,0)/sp.length)
+    const h2 = Math.round(zg.reduce((a,d)=>a+d.hrv,0)/zg.length)
+    const k1 = Math.round(sp.reduce((a,d)=>a+d.kcal,0)/sp.length)
+    const k2 = Math.round(zg.reduce((a,d)=>a+d.kcal,0)/zg.length)
+    if (Math.abs(h1-h2) >= 3) vzorci.push(`Kalorije → HRV: ko ~${k1}kcal → HRV ${h1}ms | ko ~${k2}kcal → ${h2}ms (${Math.abs(h1-h2)}ms razlika)`)
+  }
+  const beljHRV = prehrana.filter(p => p.beljakovine_g > 0).slice(0,20).map(p => {
+    const jutri = new Date(new Date(p.datum).getTime()+86400000).toISOString().slice(0,10)
+    const m = metrike.find(m2 => m2.datum===jutri)
+    return m?.hrv ? { belj: p.beljakovine_g, hrv: m.hrv } : null
+  }).filter(Boolean)
+  if (beljHRV.length >= 5) {
+    const s = [...beljHRV].sort((a,b) => a.belj-b.belj)
+    const sp = s.slice(0,Math.floor(s.length/2)), zg = s.slice(Math.ceil(s.length/2))
+    const h1 = Math.round(sp.reduce((a,d)=>a+d.hrv,0)/sp.length)
+    const h2 = Math.round(zg.reduce((a,d)=>a+d.hrv,0)/zg.length)
+    const cut = Math.round(s[Math.floor(s.length/2)].belj)
+    if (Math.abs(h1-h2) >= 3) vzorci.push(`Beljakovine → HRV: ko pod ${cut}g → HRV ${h1}ms | ko nad ${cut}g → ${h2}ms (${Math.abs(h1-h2)}ms razlika)`)
+  }
 
   function diffStr(val, cilj) {
     if (!val || !cilj) return ''
@@ -348,13 +440,29 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
 
       {/* Analiza trendov */}
       <div className="card">
-        <h3>Analiza trendov</h3>
-        {trendi.map((t, i) => (
-          <div key={i} className={`analiza-item ${t.tip}`} style={{marginBottom:8}}>
-            <span>{t.tip==='ok'?'✓':t.tip==='warn'?'⚠':'ℹ'}</span>
-            <span style={{fontSize:12}}>{t.msg}</span>
+        <h3>Analiza trendov — zadnjih 7 dni</h3>
+        {kritično.length === 0 && opozorila.length === 0 && <div style={{fontSize:12,color:'#22c55e',marginBottom:8}}>✓ Vse metrike v redu.</div>}
+        {kritično.map((item, i) => (
+          <div key={i} style={{borderLeft:'3px solid #ef4444',paddingLeft:10,marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:600,color:'#f87171',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:3}}>🔴 {item.naziv}</div>
+            <div style={{fontSize:12,color:'#94a3b8',lineHeight:1.6}}>{item.msg}</div>
+            {item.fix && <div style={{fontSize:11,color:'#475569',marginTop:4}}>➜ {item.fix}</div>}
           </div>
         ))}
+        {opozorila.map((item, i) => (
+          <div key={i} style={{borderLeft:'3px solid #eab308',paddingLeft:10,marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:600,color:'#fbbf24',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:3}}>🟡 {item.naziv}</div>
+            <div style={{fontSize:12,color:'#94a3b8',lineHeight:1.6}}>{item.msg}</div>
+            {item.fix && <div style={{fontSize:11,color:'#475569',marginTop:4}}>➜ {item.fix}</div>}
+          </div>
+        ))}
+        {vRedu.length > 0 && <div style={{fontSize:11,color:'#4ade80',marginTop:4}}>🟢 V redu: {vRedu.join(' · ')}</div>}
+        {vzorci.length > 0 && (
+          <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid #1e2433'}}>
+            <div style={{fontSize:11,color:'#64748b',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:6}}>📊 Vzorci iz tvojih podatkov</div>
+            {vzorci.map((v, i) => <div key={i} style={{fontSize:12,color:'#64748b',fontFamily:'DM Mono',marginBottom:4}}>• {v}</div>)}
+          </div>
+        )}
       </div>
     </div>
 
@@ -448,38 +556,6 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
       )
     })()}
 
-    <div className="card" style={{marginBottom:16}}>
-      <h3>AI analiza prehranjevalnih trendov</h3>
-      <div style={{fontSize:12,color:'#475569',marginBottom:12}}>Sistematična analiza vseh metrik — kalorije, makri, korelacija z regeneracijo in teki, trendi 7 vs 30 dni.</div>
-      <button
-        onClick={fetchAiPrehrana}
-        disabled={aiLoading}
-        style={{padding:'7px 18px',borderRadius:6,border:'1px solid #6366f1',background:aiLoading?'#1e2433':'#6366f122',color:aiLoading?'#475569':'#a5b4fc',fontSize:13,cursor:aiLoading?'default':'pointer',fontFamily:'DM Mono',fontWeight:500}}
-      >
-        {aiLoading ? '⏳ Analiziram...' : '🤖 Analiziraj prehrano'}
-      </button>
-      {aiError && <div style={{marginTop:10,fontSize:12,color:'#f87171',fontFamily:'DM Mono'}}>{aiError}</div>}
-      {aiAnaliza && (
-        <div style={{marginTop:14}}>
-          {aiAnaliza.split('\n').map((line, i) => {
-            const isHeader = line.startsWith('**')
-            const isEmpty = line.trim() === ''
-            return (
-              <div key={i} style={{
-                fontSize: isHeader ? 11 : 13,
-                fontWeight: isHeader ? 600 : 400,
-                color: isHeader ? '#e2e8f0' : '#94a3b8',
-                marginTop: isHeader ? 14 : isEmpty ? 4 : 2,
-                lineHeight: 1.65,
-                letterSpacing: isHeader ? '.5px' : 0,
-              }}>
-                {line.replace(/\*\*/g, '')}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
   </>)
 
 }
