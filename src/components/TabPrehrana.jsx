@@ -4,6 +4,178 @@ import { CILJI, TODAY_STR, YESTERDAY_STR } from '../constants/plan'
 import { fmt } from '../utils/helpers'
 import { ProgressBar } from './ProgressBar'
 
+const HRANA_DB = [
+  { n:'Piščančje prsi 150g',       k:165, b:37, o:0,  m:2,   vl:0,  že:1.2, ka:450,  ca:15,  vc:0,   va:30,    ho:90  },
+  { n:'Tuna v vodi 150g',           k:140, b:32, o:0,  m:1,   vl:0,  že:1.3, ka:470,  ca:20,  vc:0,   va:90,    ho:57  },
+  { n:'Losos 150g',                 k:280, b:35, o:0,  m:15,  vl:0,  že:0.8, ka:700,  ca:25,  vc:3,   va:150,   ho:95  },
+  { n:'Sardine 100g',               k:200, b:25, o:0,  m:11,  vl:0,  že:2.9, ka:400,  ca:380, vc:0,   va:180,   ho:130 },
+  { n:'Skyr 200g',                  k:120, b:22, o:8,  m:0.4, vl:0,  že:0.2, ka:280,  ca:240, vc:0,   va:20,    ho:10  },
+  { n:'Grški jogurt 200g',          k:120, b:18, o:7,  m:2,   vl:0,  že:0.1, ka:280,  ca:220, vc:0,   va:60,    ho:10  },
+  { n:'Jajca 3 kos',                k:210, b:18, o:1,  m:14,  vl:0,  že:2.7, ka:195,  ca:80,  vc:0,   va:540,   ho:558 },
+  { n:'Tofu 150g',                  k:120, b:14, o:3,  m:7,   vl:0.6,že:2.7, ka:210,  ca:525, vc:0,   va:0,     ho:0   },
+  { n:'Leča kuhana 200g',           k:230, b:18, o:38, m:0.8, vl:16, že:6.6, ka:730,  ca:40,  vc:3,   va:15,    ho:0   },
+  { n:'Fižol kuhan 200g',           k:265, b:17, o:47, m:1,   vl:16, že:4.6, ka:1000, ca:120, vc:4,   va:0,     ho:0   },
+  { n:'Riž kuhan 200g',             k:260, b:5,  o:57, m:0.5, vl:0.8,že:1.5, ka:80,   ca:20,  vc:0,   va:0,     ho:0   },
+  { n:'Testenine polnozrnate 200g', k:280, b:10, o:55, m:2,   vl:6,  že:2.8, ka:160,  ca:25,  vc:0,   va:0,     ho:0   },
+  { n:'Ovseni kosmiči 80g',         k:295, b:10, o:52, m:5,   vl:8,  že:3.7, ka:290,  ca:40,  vc:0,   va:0,     ho:0   },
+  { n:'Sladki krompir 200g',        k:170, b:3,  o:39, m:0.3, vl:6,  že:1.4, ka:700,  ca:60,  vc:35,  va:18000, ho:0   },
+  { n:'Banana',                     k:105, b:1,  o:27, m:0.4, vl:3,  že:0.3, ka:420,  ca:6,   vc:10,  va:75,    ho:0   },
+  { n:'Avokado ½',                  k:160, b:2,  o:9,  m:15,  vl:7,  že:0.6, ka:485,  ca:12,  vc:10,  va:100,   ho:0   },
+  { n:'Mandlji 30g',                k:175, b:6,  o:6,  m:16,  vl:3.5,že:1.1, ka:210,  ca:75,  vc:0,   va:0,     ho:0   },
+  { n:'Špinača 150g',               k:35,  b:4,  o:3,  m:0.5, vl:4,  že:4.1, ka:560,  ca:150, vc:25,  va:11000, ho:0   },
+  { n:'Brokoli 200g',               k:70,  b:6,  o:11, m:0.8, vl:5,  že:1.4, ka:640,  ca:90,  vc:180, va:1200,  ho:0   },
+  { n:'Rdeča paprika 150g',         k:45,  b:1,  o:10, m:0.3, vl:2.5,že:0.7, ka:315,  ca:12,  vc:210, va:3800,  ho:0   },
+  { n:'Korenček 150g',              k:55,  b:1,  o:13, m:0.3, vl:3.5,že:0.6, ka:420,  ca:45,  vc:7,   va:15000, ho:0   },
+  { n:'Sir gouda 30g',              k:120, b:8,  o:0,  m:10,  vl:0,  že:0.1, ka:30,   ca:200, vc:0,   va:80,    ho:35  },
+]
+
+const MIKRO_CILJI_DB = { že:18, ka:3500, ca:1000, vc:90, va:5000, vl:30 }
+
+function PredlogObroka({ mikro, danes, cilj }) {
+  const [ostanek, setOstanek] = React.useState(() => {
+    if (danes) return {
+      kcal: Math.max(0, Math.round((cilj.kcal||2000) - (danes.kalorije_skupaj||0))),
+      belj: Math.max(0, Math.round((cilj.belj||150)  - (danes.beljakovine_g||0))),
+      oh:   Math.max(0, Math.round((cilj.oh||200)    - (danes.ogljikovi_hidrati_g||0))),
+      masc: Math.max(0, Math.round((cilj.masc||65)   - (danes.masc_g||0))),
+    }
+    return { kcal:'', belj:'', oh:'', masc:'' }
+  })
+  const [predlog, setPredlog] = React.useState(null)
+
+  const generirajPredlog = () => {
+    const r = {
+      kcal: Math.max(0, Number(ostanek.kcal)||0),
+      belj: Math.max(0, Number(ostanek.belj)||0),
+      oh:   Math.max(0, Number(ostanek.oh)||0),
+      masc: Math.max(0, Number(ostanek.masc)||0),
+    }
+    if (r.kcal < 50 && r.belj < 5 && r.oh < 5) { setPredlog({ tip:'done' }); return }
+
+    // Find micronutrient deficits from 7-day averages
+    const mikroDef = []
+    const mikroMap = { že: mikro.železo, ka: mikro.kalij, ca: mikro.kalcij, vc: mikro.vitamin_c, va: mikro.vitamin_a, vl: mikro.vlaknine }
+    Object.entries(MIKRO_CILJI_DB).forEach(([key, cilj]) => {
+      const val = mikroMap[key]
+      if (!val) return
+      const p = val / cilj
+      if (p < 0.75) mikroDef.push({ key, p, urgent: p < 0.55 })
+    })
+    const mikroDefLabels = { že:'železo', ka:'kalij', ca:'kalcij', vc:'vitamin C', va:'vitamin A', vl:'vlaknine' }
+    const holesterolVisok = mikro.holesterol && mikro.holesterol > 400
+
+    // Score foods
+    const scored = HRANA_DB.map(h => {
+      let s = 0
+      // Macro contribution (how much of remaining need does this cover?)
+      if (r.belj > 0) s += Math.min(1, h.b / r.belj) * 35
+      if (r.oh   > 0) s += Math.min(1, h.o / r.oh)   * 25
+      if (r.masc > 0) s += Math.min(1, h.m / r.masc)  * 10
+      // Calorie fit: ideal 25–75% of remaining
+      if (r.kcal > 0) {
+        const ratio = h.k / r.kcal
+        s += ratio >= 0.2 && ratio <= 0.8 ? 15 : ratio > 1.3 ? -25 : 5
+      }
+      // Micro bonus
+      mikroDef.forEach(md => {
+        const contrib = (h[md.key]||0) / MIKRO_CILJI_DB[md.key]
+        if (contrib > 0) s += contrib * (md.urgent ? 55 : 30)
+      })
+      // Holesterol penalty
+      if (holesterolVisok && h.ho > 200) s -= 30
+      return { ...h, s }
+    }).sort((a, b) => b.s - a.s)
+
+    // Greedy meal selection (up to 3 foods)
+    const meal = []
+    let rk = r.kcal, rb = r.belj, ro = r.oh, rm = r.masc
+
+    const add = h => { meal.push(h); rk -= h.k; rb -= h.b; ro -= h.o; rm -= h.m }
+
+    add(scored[0])
+    if (rk > 150) {
+      const s2 = scored.slice(1).find(h => !meal.includes(h) && h.k <= rk * 1.4)
+      if (s2) add(s2)
+    }
+    if (mikroDef.length > 0 && meal.length < 3 && rk > 20) {
+      const s3 = scored.find(h => !meal.includes(h) && h.k <= Math.max(rk, 80) * 1.3 && mikroDef.some(md => (h[md.key]||0) > 0))
+      if (s3) add(s3)
+    }
+
+    const tot = meal.reduce((acc, h) => ({
+      k:   acc.k+h.k,   b:  acc.b+h.b,   o:  acc.o+h.o,   m:   acc.m+h.m,
+      vl:  acc.vl+(h.vl||0), že: acc.že+(h.že||0), ka: acc.ka+(h.ka||0),
+      ca:  acc.ca+(h.ca||0), vc: acc.vc+(h.vc||0), va: acc.va+(h.va||0),
+    }), { k:0, b:0, o:0, m:0, vl:0, že:0, ka:0, ca:0, vc:0, va:0 })
+
+    const bonusi = []
+    if (tot.že >= 1)   bonusi.push(`železo +${Math.round(tot.že*10)/10}mg`)
+    if (tot.ka >= 200) bonusi.push(`kalij +${Math.round(tot.ka)}mg`)
+    if (tot.ca >= 80)  bonusi.push(`kalcij +${Math.round(tot.ca)}mg`)
+    if (tot.vc >= 15)  bonusi.push(`vit. C +${Math.round(tot.vc)}mg`)
+    if (tot.va >= 300) bonusi.push(`vit. A +${Math.round(tot.va)}IU`)
+    if (tot.vl >= 3)   bonusi.push(`vlaknine +${Math.round(tot.vl*10)/10}g`)
+
+    const zakaj = mikroDef.length > 0
+      ? `Naslavlja tvoj primanjkljaj (7d): ${mikroDef.map(d => mikroDefLabels[d.key]).join(', ')}`
+      : 'Uravnotežen obrok za pokritje makro ciljev'
+
+    setPredlog({ tip:'meal', hrana: meal, tot, bonusi, zakaj })
+  }
+
+  const inputStyle = { width:70, background:'#0f172a', border:'1px solid #1e2433', borderRadius:4, padding:'4px 8px', color:'#e2e8f0', fontFamily:'DM Mono', fontSize:13 }
+
+  return (
+    <div className="card" style={{marginBottom:16}}>
+      <h3>Kaj naj jedem danes?</h3>
+      <div style={{fontSize:11,color:'#475569',marginBottom:10}}>
+        Vnesi koliko ti še ostane do cilja — predlog upošteva makre in mikronutrientne trende (7d povprečje).
+      </div>
+      {danes && <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginBottom:10}}>auto-izpolnjeno iz MFP ({TODAY_STR}) · uredi po potrebi</div>}
+      <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:12,alignItems:'flex-end'}}>
+        {[
+          {k:'kcal',l:'Kalorije',u:'kcal'},
+          {k:'belj',l:'Beljakovine',u:'g'},
+          {k:'oh',l:'OH',u:'g'},
+          {k:'masc',l:'Maščobe',u:'g'},
+        ].map(f => (
+          <div key={f.k}>
+            <div style={{fontSize:10,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',marginBottom:4}}>{f.l}</div>
+            <div style={{display:'flex',alignItems:'center',gap:4}}>
+              <input type="number" value={ostanek[f.k]} onChange={e => setOstanek(p => ({...p,[f.k]:e.target.value}))} style={inputStyle}/>
+              <span style={{fontSize:11,color:'#475569'}}>{f.u}</span>
+            </div>
+          </div>
+        ))}
+        <button onClick={generirajPredlog} style={{background:'#1e3a5f',border:'1px solid #3b82f6',color:'#93c5fd',padding:'8px 16px',borderRadius:6,cursor:'pointer',fontSize:12,fontFamily:'DM Mono',alignSelf:'flex-end'}}>
+          Predlagaj →
+        </button>
+      </div>
+
+      {predlog?.tip === 'done' && (
+        <div style={{padding:'10px 14px',background:'#052e16',border:'1px solid #14532d',borderRadius:8,color:'#86efac',fontSize:13}}>
+          ✅ Dosegel si vse cilje za danes!
+        </div>
+      )}
+
+      {predlog?.tip === 'meal' && (
+        <div style={{borderTop:'1px solid #1e2433',paddingTop:14}}>
+          <div style={{fontSize:14,fontWeight:600,color:'#e2e8f0',marginBottom:6,lineHeight:1.5}}>
+            {predlog.hrana.map(h => h.n).join(' + ')}
+          </div>
+          <div style={{fontSize:12,fontFamily:'DM Mono',color:'#64748b',marginBottom:8}}>
+            ~{Math.round(predlog.tot.k)} kcal · {Math.round(predlog.tot.b)}g belj · {Math.round(predlog.tot.o)}g OH · {Math.round(predlog.tot.m)}g masc
+          </div>
+          {predlog.bonusi.length > 0 && (
+            <div style={{fontSize:11,color:'#4ade80',marginBottom:6}}>✓ {predlog.bonusi.join(' · ')}</div>
+          )}
+          <div style={{fontSize:11,color:'#64748b',fontStyle:'italic'}}>💡 {predlog.zakaj}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefresh}){
   // Vedno prikaži včerajšnje podatke
   const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.filter(p => p.kalorije_skupaj > 0)[0] || {}
@@ -580,6 +752,8 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
         </div>
       )
     })()}
+
+    <PredlogObroka mikro={mikro} danes={danesPrehrana} cilj={ciljiDanes} />
 
   </>)
 
