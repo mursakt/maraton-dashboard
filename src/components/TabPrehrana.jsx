@@ -214,6 +214,20 @@ function PredlogObroka({ mikro, danes, cilj, prioritete, setPrioriteta, resetAll
       .filter(Boolean)
     const holesterolVisok = mikro.holesterol && mikro.holesterol > 400
 
+    // Preostali mikro primanjkljaj — zmanjšuje se ko izbiramo živila (opcija 5)
+    const remainingMikro = {}
+    Object.entries(MIKRO_CILJI_DB).forEach(([key, ciljVal]) => {
+      remainingMikro[key] = Math.max(0, ciljVal - (mikroMap[key] || 0))
+    })
+
+    // Sloti po obroku — vsak slot definira dovoljene kategorije (opcija 1)
+    const MEAL_SLOTS = {
+      zajtrk:    [['protein','mlecni'], ['zita','sadje'], ['sadje','ostalo']],
+      kosilo:    [['protein','strocnice'], ['zita'], ['zelenjava']],
+      prigrizek: [['sadje','ostalo'], ['mlecni','sadje']],
+      vecerja:   [['protein','strocnice','mlecni'], ['zita','strocnice'], ['zelenjava']],
+    }
+
     const scoreFood = (h, rk, rb, ro, rm, mealPref) => {
       const userPrio = prioritete[h.n] || 0
       let s = PREF_SCORE[userPrio] + (mealPref ? 8 : 0)
@@ -222,9 +236,15 @@ function PredlogObroka({ mikro, danes, cilj, prioritete, setPrioriteta, resetAll
       if (rm > 5)  s += Math.min(1, h.m/rm) * 10
       const ratio = rk > 0 ? h.k/rk : 0
       s += ratio>=0.08 && ratio<=0.9 ? 20 : ratio>1.5 ? -35 : 5
-      mikroDef.forEach(md => { const c=Math.min(1, (h[md.key]||0)/MIKRO_CILJI_DB[md.key]); if(c>0) s+=c*(md.urgent?40:22) })
+      // Mikro bonus sorazmeren z PREOSTALIM primanjkljajem, ne absolutno vrednostjo živila
+      Object.entries(remainingMikro).forEach(([key, remaining]) => {
+        if (remaining <= 0) return
+        const contrib = Math.min(remaining, h[key] || 0)
+        const pct = contrib / MIKRO_CILJI_DB[key]
+        if (pct > 0) s += pct * (remaining / MIKRO_CILJI_DB[key] > 0.45 ? 38 : 20)
+      })
       if (holesterolVisok && h.ho > 200) s -= 30
-      s += Math.random() * 10 - 5
+      s += Math.random() * 8 - 4
       return s
     }
 
@@ -237,19 +257,25 @@ function PredlogObroka({ mikro, danes, cilj, prioritete, setPrioriteta, resetAll
     const meals = aktMeals.map(obrok => {
       const frac = obrok.pct / totalPct
       let rk=Math.round(r.kcal*frac), rb=Math.round(r.belj*frac), ro=Math.round(r.oh*frac), rm=Math.round(r.masc*frac)
-      const maxItems = obrok.id === 'prigrizek' ? 2 : 3
+      const slots = MEAL_SLOTS[obrok.id] || [['protein'], ['zita'], ['zelenjava']]
       const hrana = []
-      while (rk > 70 && hrana.length < maxItems) {
-        const next = HRANA_DB
-          .filter(h => !usedNames.has(h.n))
-          .map(h => ({ ...h, s: scoreFood(h, rk, rb, ro, rm, obrok.preferred.has(h.n)) }))
 
+      for (const allowedCats of slots) {
+        if (rk <= 50) break
+        const next = HRANA_DB
+          .filter(h => !usedNames.has(h.n) && allowedCats.includes(h.cat))
+          .map(h => ({ ...h, s: scoreFood(h, rk, rb, ro, rm, obrok.preferred.has(h.n)) }))
           .sort((a,b) => b.s-a.s)[0]
-        if (!next || (next.k > rk*2 && hrana.length > 0)) break
+        if (!next || (next.k > rk*2.5 && hrana.length > 0)) continue
         hrana.push(next)
         usedNames.add(next.n)
         rk-=next.k; rb-=next.b; ro-=next.o; rm-=next.m
+        // Posodobi preostali mikro primanjkljaj
+        Object.keys(remainingMikro).forEach(key => {
+          remainingMikro[key] = Math.max(0, remainingMikro[key] - (next[key] || 0))
+        })
       }
+
       const tot = hrana.reduce((a,h) => ({
         k:a.k+h.k, b:a.b+h.b, o:a.o+h.o, m:a.m+h.m,
         vl:a.vl+(h.vl||0), že:a.že+(h.že||0), ca:a.ca+(h.ca||0), vc:a.vc+(h.vc||0), va:a.va+(h.va||0)
