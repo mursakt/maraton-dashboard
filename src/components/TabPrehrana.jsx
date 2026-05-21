@@ -89,7 +89,9 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
   if (avgBelj > 0) {
     const p = pc(avgBelj, CILJI.belj), t = trendStr(avgBelj, avg30Belj)
     const gkg = Math.round(avgBelj/80*10)/10
-    if (p < 75) kritično.push({ naziv: 'Beljakovine', msg: `${Math.round(avgBelj)}g = ${p}% cilja${t} (${gkg}g/kg). Pod 1.4g/kg → mišice se razgrajujejo po tekih namesto gradijo.`, fix: `Piščančje prsi 200g = 50g, skyr 200g = 20g, tuna 150g = 35g, jajca 3× = 18g.` })
+    if (avgBelj > 300) kritično.push({ naziv: 'Beljakovine — PREVEČ', msg: `${Math.round(avgBelj)}g/dan = ${gkg}g/kg. Nad 3g/kg kronično → ledvični stres in izpodrivanje OH. Optimum za tekača: 1.6–2.2g/kg.`, fix: null })
+    else if (avgBelj > 240) opozorila.push({ naziv: 'Beljakovine — visoko', msg: `${Math.round(avgBelj)}g/dan = ${gkg}g/kg. Nad 3g/kg daljše obdobje → ledvična obremenitev, manj prostora za OH.`, fix: null })
+    else if (p < 75) kritično.push({ naziv: 'Beljakovine', msg: `${Math.round(avgBelj)}g = ${p}% cilja${t} (${gkg}g/kg). Pod 1.4g/kg → mišice se razgrajujejo po tekih namesto gradijo.`, fix: `Piščančje prsi 200g = 50g, skyr 200g = 20g, tuna 150g = 35g, jajca 3× = 18g.` })
     else if (p < 90) opozorila.push({ naziv: 'Beljakovine', msg: `${Math.round(avgBelj)}g = ${p}% cilja${t} (${gkg}g/kg). Regeneracija suboptimalna.`, fix: `Dodaj ~${Math.round(CILJI.belj-avgBelj)}g/dan: skyr 200g ali piščanec 150g.` })
     else vRedu.push(`Beljakovine ${Math.round(avgBelj)}g (${p}%)`)
   }
@@ -111,41 +113,53 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
   if (z7mikro.length >= 2) {
     const mikroDef = [
       { key:'železo',    naziv:'Železo',     cilj:18,   enota:'mg', kritPct:55, opoPct:75,
+        ulWarn:45, ulKrit:70,
         msg:(p,v) => `${Math.round(v*10)/10}mg = ${p}% cilja (18mg). Anemija znižuje kapaciteto O₂ — neposreden vpliv na vzdržljivost.`,
-        hrana:'Goveja jetra 100g = 6mg, leča 200g = 7mg, špinača 200g = 5mg. Z vit. C poveča absorpcijo 3×.' },
+        hrana:'Goveja jetra 100g = 6mg, leča 200g = 7mg, špinača 200g = 5mg. Z vit. C poveča absorpcijo 3×.',
+        ulMsg:(v,lvl) => lvl==='kritično' ? `${Math.round(v*10)/10}mg/dan — nad IoM UL (45mg). Kronično visoko železo povzroča oksidativni stres in poškodbe organov.` : `${Math.round(v*10)/10}mg/dan — blizu zgornje meje (UL = 45mg). Zmanjšaj rdeče meso in železove dodatke.` },
       { key:'kalij',     naziv:'Kalij',      cilj:3500, enota:'mg', kritPct:50, opoPct:70,
+        ulWarn:5000, ulKrit:7000,
         msg:(p,v) => `${Math.round(v)}mg = ${p}% cilja (3500mg). Mišični krči, motnje srčnega ritma med dolgimi teki.`,
         hrana:'Sladki krompir 200g = 700mg, avokado 150g = 700mg, fižol 200g = 1000mg, banana = 420mg.',
-        presežekPct:150, presežekMsg:(p,v) => `${Math.round(v)}mg = ${p}% cilja. Neravnovesje z natrijem → motnje ritma pri ekstremnih naporih.` },
+        ulMsg:(v,lvl) => lvl==='kritično' ? `${Math.round(v)}mg/dan — kritično visoko (>7000mg). Hiperkalemija → nevarnost srčnih aritmij. Zmanjšaj takoj.` : `${Math.round(v)}mg/dan — nad varno mejo (>5000mg). Možne GI motnje in motnje srčnega ritma pri naporih.` },
       { key:'vlaknine',  naziv:'Vlaknine',   cilj:30,   enota:'g',  kritPct:40, opoPct:65,
+        ulWarn:60, ulKrit:80,
         msg:(p,v) => `${Math.round(v*10)/10}g = ${p}% cilja (30g). Slabša prebava, počasnejše sproščanje energije.`,
         hrana:'Ovseni kosmiči 80g = 8g, leča 200g = 8g, polnozrnati kruh 2r = 4g, jabolko = 4g.',
-        presežekPct:200, presežekMsg:(p,v) => `${Math.round(v)}g = ${p}% cilja. Pazi dan pred tekom — GI težave med tekom.` },
+        ulMsg:(v,lvl) => lvl==='kritično' ? `${Math.round(v)}g/dan vlaknin — kritično (>80g). Resne GI težave, zmanjšana absorpcija mineralov in kalnično tveganje med tekom.` : `${Math.round(v)}g/dan — visoko (>60g). Dan pred tekom zmanjšaj na <30g za izogib GI težavam med tekom.` },
       { key:'vitamin_c', naziv:'Vitamin C',  cilj:90,   enota:'mg', kritPct:40, opoPct:65,
+        ulWarn:1000, ulKrit:2000,
         msg:(p,v) => `${Math.round(v)}mg = ${p}% cilja (90mg). Slabša absorpcija železa in imunska funkcija.`,
-        hrana:'Rdeča paprika 100g = 140mg, pomaranča = 70mg, brokoli 100g = 90mg, jagode 150g = 85mg.' },
+        hrana:'Rdeča paprika 100g = 140mg, pomaranča = 70mg, brokoli 100g = 90mg, jagode 150g = 85mg.',
+        ulMsg:(v,lvl) => lvl==='kritično' ? `${Math.round(v)}mg/dan — nad IoM UL (2000mg). Tveganje ledvičnih kamnov in resne GI motnje. Zmanjšaj takoj.` : `${Math.round(v)}mg/dan — visoko (>1000mg). IoM UL je 2000mg — blizu meje. Preveri dodatke.` },
       { key:'natrij',    naziv:'Natrij',     cilj:2300, enota:'mg', kritPct:null, opoPct:null,
-        presežekPct:150, presežekMsg:(p,v) => `${Math.round(v)}mg = ${p}% cilja (2300mg). Zadržavanje vode, višji krvni tlak, slabša ekonomičnost teka.` },
+        ulWarn:3500, ulKrit:5000,
+        ulMsg:(v,lvl) => lvl==='kritično' ? `${Math.round(v)}mg/dan — kritično visoko (>5g). Resno tveganje za hipertenzijo in ledvično obremenitev. Izogni se predelani hrani in kobasicam.` : `${Math.round(v)}mg/dan = ${pc(v,2300)}% priporočenega (2300mg). Zadržavanje vode, višji krvni tlak, slabša ekonomičnost teka.` },
       { key:'sladkorji', naziv:'Sladkorji',  cilj:50,   enota:'g',  kritPct:null, opoPct:null,
-        presežekPct:150, presežekMsg:(p,v) => `${Math.round(v)}g = ${p}% cilja (50g). Nihanje krvnega sladkorja → energijski padci med tekom.` },
+        ulWarn:80, ulKrit:120,
+        ulMsg:(v,lvl) => lvl==='kritično' ? `${Math.round(v)}g/dan prostih sladkorjev — kritično (>120g). Resno tveganje za inzulinsko odpornost in energijske krče med tekom.` : `${Math.round(v)}g/dan = ${pc(v,50)}% priporočenega (50g). Nihanje krvnega sladkorja → energijski padci med tekom.` },
       { key:'kalcij',    naziv:'Kalcij',     cilj:1000, enota:'mg', kritPct:40, opoPct:70,
+        ulWarn:2000, ulKrit:2500,
         msg:(p,v) => `${Math.round(v)}mg = ${p}% cilja (1000mg). Nizek kalcij → tveganje za stresne zlome kosti pri tekačih. Najpogostejša nutritivna poškodba pri vzdržljivostnih športnikih.`,
-        hrana:'Jogurt 200g = 240mg, sir 30g = 200mg, sardine 100g = 380mg, tofu 100g = 350mg, mandlji 30g = 75mg, brokoli 200g = 90mg.' },
+        hrana:'Jogurt 200g = 240mg, sir 30g = 200mg, sardine 100g = 380mg, tofu 100g = 350mg, mandlji 30g = 75mg, brokoli 200g = 90mg.',
+        ulMsg:(v,lvl) => lvl==='kritično' ? `${Math.round(v)}mg/dan — nad IoM UL (2500mg). Hiperkalcemija → ledvični kamni, motnje srčnega ritma. Zmanjšaj dodatke takoj.` : `${Math.round(v)}mg/dan — blizu IoM UL (2500mg). Zmanjšaj kalcijeve dodatke — dovolj je iz hrane.` },
       { key:'holesterol', naziv:'Holesterol', cilj:300,  enota:'mg', kritPct:null, opoPct:null,
-        presežekPct:120, presežekMsg:(p,v) => `${Math.round(v)}mg = ${p}% priporočenega max (300mg). Povišan LDL poveča kardiovaskularno tveganje na dolgi rok.`,
-        presežekKrit:250, presežekKritMsg:(p,v) => `${Math.round(v)}mg = ${p}% priporočenega max (300mg). Kronično visok holesterol škodi srčno-žilnemu sistemu, ki je osnova vzdržljivosti.` },
+        ulWarn:400, ulKrit:700,
+        ulMsg:(v,lvl) => lvl==='kritično' ? `${Math.round(v)}mg/dan — kritično visoko (>700mg). Kronično visok holesterol škodi srčno-žilnemu sistemu, ki je osnova vzdržljivosti.` : `${Math.round(v)}mg/dan = ${pc(v,300)}% priporočenega max (300mg). Povišan LDL poveča kardiovaskularno tveganje na dolgi rok.` },
       { key:'vitamin_a', naziv:'Vitamin A',  cilj:5000, enota:'IU', kritPct:40, opoPct:65,
+        ulWarn:7500, ulKrit:10000,
         msg:(p,v) => `${Math.round(v)}IU = ${p}% cilja (5000IU). Pomanjkanje vit. A slabi imunski sistem in nočni vid — kritično pri intenzivnih treningih.`,
-        hrana:'Goveja jetra 100g = 26000IU, sladki krompir 150g = 18000IU, korenček 100g = 10000IU, špinača 150g = 2800IU.' },
+        hrana:'Goveja jetra 100g = 26000IU, sladki krompir 150g = 18000IU, korenček 100g = 10000IU, špinača 150g = 2800IU.',
+        ulMsg:(v,lvl) => lvl==='kritično' ? `${Math.round(v)}IU/dan — nad IoM UL (10000IU). Kronična toksičnost: glavoboli, okvara jeter, krhke kosti. Zmanjšaj takoj.` : `${Math.round(v)}IU/dan — blizu IoM UL (10000IU). Vitamin A se kopiči v maščobnem tkivu. Zmanjšaj jetra in dodatke.` },
     ]
     mikroDef.forEach(m => {
       const v = mikro[m.key]; if (!v) return
       const p = pc(v, m.cilj)
-      if (m.kritPct && p < m.kritPct) kritično.push({ naziv: m.naziv, msg: m.msg(p, v), fix: m.hrana })
-      else if (m.opoPct && p < m.opoPct) opozorila.push({ naziv: m.naziv, msg: m.msg(p, v), fix: m.hrana })
-      else if (m.presežekKrit && p > m.presežekKrit) kritično.push({ naziv: `${m.naziv} — kritično visok`, msg: m.presežekKritMsg(p, v), fix: null })
-      else if (m.presežekPct && p > m.presežekPct) opozorila.push({ naziv: `${m.naziv} — presežek`, msg: m.presežekMsg(p, v), fix: null })
-      else if (m.kritPct) vRedu.push(`${m.naziv} ${Math.round(v*10)/10}${m.enota} (${p}%)`)
+      if (m.ulKrit && v > m.ulKrit)        kritično.push({ naziv: `${m.naziv} — PREVEČ`, msg: m.ulMsg(v, 'kritično'), fix: null })
+      else if (m.ulWarn && v > m.ulWarn)   opozorila.push({ naziv: `${m.naziv} — visoko`, msg: m.ulMsg(v, 'warn'), fix: null })
+      else if (m.kritPct && p < m.kritPct) kritično.push({ naziv: m.naziv, msg: m.msg(p, v), fix: m.hrana })
+      else if (m.opoPct  && p < m.opoPct)  opozorila.push({ naziv: m.naziv, msg: m.msg(p, v), fix: m.hrana })
+      else if (m.kritPct || m.opoPct)      vRedu.push(`${m.naziv} ${Math.round(v*10)/10}${m.enota} (${p}%)`)
     })
   }
 
