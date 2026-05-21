@@ -5,31 +5,131 @@ import { fmt } from '../utils/helpers'
 import { ProgressBar } from './ProgressBar'
 
 const HRANA_DB = [
-  { n:'Piščančje prsi 150g',       k:165, b:37, o:0,  m:2,   vl:0,  že:1.2, ka:450,  ca:15,  vc:0,   va:30,    ho:90  },
-  { n:'Tuna v vodi 150g',           k:140, b:32, o:0,  m:1,   vl:0,  že:1.3, ka:470,  ca:20,  vc:0,   va:90,    ho:57  },
-  { n:'Losos 150g',                 k:280, b:35, o:0,  m:15,  vl:0,  že:0.8, ka:700,  ca:25,  vc:3,   va:150,   ho:95  },
-  { n:'Sardine 100g',               k:200, b:25, o:0,  m:11,  vl:0,  že:2.9, ka:400,  ca:380, vc:0,   va:180,   ho:130 },
-  { n:'Skyr 200g',                  k:120, b:22, o:8,  m:0.4, vl:0,  že:0.2, ka:280,  ca:240, vc:0,   va:20,    ho:10  },
-  { n:'Grški jogurt 200g',          k:120, b:18, o:7,  m:2,   vl:0,  že:0.1, ka:280,  ca:220, vc:0,   va:60,    ho:10  },
-  { n:'Jajca 3 kos',                k:210, b:18, o:1,  m:14,  vl:0,  že:2.7, ka:195,  ca:80,  vc:0,   va:540,   ho:558 },
-  { n:'Tofu 150g',                  k:120, b:14, o:3,  m:7,   vl:0.6,že:2.7, ka:210,  ca:525, vc:0,   va:0,     ho:0   },
-  { n:'Leča kuhana 200g',           k:230, b:18, o:38, m:0.8, vl:16, že:6.6, ka:730,  ca:40,  vc:3,   va:15,    ho:0   },
-  { n:'Fižol kuhan 200g',           k:265, b:17, o:47, m:1,   vl:16, že:4.6, ka:1000, ca:120, vc:4,   va:0,     ho:0   },
-  { n:'Riž kuhan 200g',             k:260, b:5,  o:57, m:0.5, vl:0.8,že:1.5, ka:80,   ca:20,  vc:0,   va:0,     ho:0   },
-  { n:'Testenine polnozrnate 200g', k:280, b:10, o:55, m:2,   vl:6,  že:2.8, ka:160,  ca:25,  vc:0,   va:0,     ho:0   },
-  { n:'Ovseni kosmiči 80g',         k:295, b:10, o:52, m:5,   vl:8,  že:3.7, ka:290,  ca:40,  vc:0,   va:0,     ho:0   },
-  { n:'Sladki krompir 200g',        k:170, b:3,  o:39, m:0.3, vl:6,  že:1.4, ka:700,  ca:60,  vc:35,  va:18000, ho:0   },
-  { n:'Banana',                     k:105, b:1,  o:27, m:0.4, vl:3,  že:0.3, ka:420,  ca:6,   vc:10,  va:75,    ho:0   },
-  { n:'Avokado ½',                  k:160, b:2,  o:9,  m:15,  vl:7,  že:0.6, ka:485,  ca:12,  vc:10,  va:100,   ho:0   },
-  { n:'Mandlji 30g',                k:175, b:6,  o:6,  m:16,  vl:3.5,že:1.1, ka:210,  ca:75,  vc:0,   va:0,     ho:0   },
-  { n:'Špinača 150g',               k:35,  b:4,  o:3,  m:0.5, vl:4,  že:4.1, ka:560,  ca:150, vc:25,  va:11000, ho:0   },
-  { n:'Brokoli 200g',               k:70,  b:6,  o:11, m:0.8, vl:5,  že:1.4, ka:640,  ca:90,  vc:180, va:1200,  ho:0   },
-  { n:'Rdeča paprika 150g',         k:45,  b:1,  o:10, m:0.3, vl:2.5,že:0.7, ka:315,  ca:12,  vc:210, va:3800,  ho:0   },
-  { n:'Korenček 150g',              k:55,  b:1,  o:13, m:0.3, vl:3.5,že:0.6, ka:420,  ca:45,  vc:7,   va:15000, ho:0   },
-  { n:'Sir gouda 30g',              k:120, b:8,  o:0,  m:10,  vl:0,  že:0.1, ka:30,   ca:200, vc:0,   va:80,    ho:35  },
+  { n:'Piščančje prsi 150g',       cat:'protein',   k:165, b:37, o:0,  m:2,   vl:0,  že:1.2, ka:450,  ca:15,  vc:0,   va:30,    ho:90  },
+  { n:'Tuna v vodi 150g',           cat:'protein',   k:140, b:32, o:0,  m:1,   vl:0,  že:1.3, ka:470,  ca:20,  vc:0,   va:90,    ho:57  },
+  { n:'Losos 150g',                 cat:'protein',   k:280, b:35, o:0,  m:15,  vl:0,  že:0.8, ka:700,  ca:25,  vc:3,   va:150,   ho:95  },
+  { n:'Sardine 100g',               cat:'protein',   k:200, b:25, o:0,  m:11,  vl:0,  že:2.9, ka:400,  ca:380, vc:0,   va:180,   ho:130 },
+  { n:'Jajca 3 kos',                cat:'protein',   k:210, b:18, o:1,  m:14,  vl:0,  že:2.7, ka:195,  ca:80,  vc:0,   va:540,   ho:558 },
+  { n:'Tofu 150g',                  cat:'protein',   k:120, b:14, o:3,  m:7,   vl:0.6,že:2.7, ka:210,  ca:525, vc:0,   va:0,     ho:0   },
+  { n:'Skyr 200g',                  cat:'mlecni',    k:120, b:22, o:8,  m:0.4, vl:0,  že:0.2, ka:280,  ca:240, vc:0,   va:20,    ho:10  },
+  { n:'Grški jogurt 200g',          cat:'mlecni',    k:120, b:18, o:7,  m:2,   vl:0,  že:0.1, ka:280,  ca:220, vc:0,   va:60,    ho:10  },
+  { n:'Sir gouda 30g',              cat:'mlecni',    k:120, b:8,  o:0,  m:10,  vl:0,  že:0.1, ka:30,   ca:200, vc:0,   va:80,    ho:35  },
+  { n:'Leča kuhana 200g',           cat:'strocnice', k:230, b:18, o:38, m:0.8, vl:16, že:6.6, ka:730,  ca:40,  vc:3,   va:15,    ho:0   },
+  { n:'Fižol kuhan 200g',           cat:'strocnice', k:265, b:17, o:47, m:1,   vl:16, že:4.6, ka:1000, ca:120, vc:4,   va:0,     ho:0   },
+  { n:'Riž kuhan 200g',             cat:'zita',      k:260, b:5,  o:57, m:0.5, vl:0.8,že:1.5, ka:80,   ca:20,  vc:0,   va:0,     ho:0   },
+  { n:'Testenine polnozrnate 200g', cat:'zita',      k:280, b:10, o:55, m:2,   vl:6,  že:2.8, ka:160,  ca:25,  vc:0,   va:0,     ho:0   },
+  { n:'Ovseni kosmiči 80g',         cat:'zita',      k:295, b:10, o:52, m:5,   vl:8,  že:3.7, ka:290,  ca:40,  vc:0,   va:0,     ho:0   },
+  { n:'Sladki krompir 200g',        cat:'zita',      k:170, b:3,  o:39, m:0.3, vl:6,  že:1.4, ka:700,  ca:60,  vc:35,  va:18000, ho:0   },
+  { n:'Banana',                     cat:'sadje',     k:105, b:1,  o:27, m:0.4, vl:3,  že:0.3, ka:420,  ca:6,   vc:10,  va:75,    ho:0   },
+  { n:'Avokado ½',                  cat:'sadje',     k:160, b:2,  o:9,  m:15,  vl:7,  že:0.6, ka:485,  ca:12,  vc:10,  va:100,   ho:0   },
+  { n:'Mandlji 30g',                cat:'sadje',     k:175, b:6,  o:6,  m:16,  vl:3.5,že:1.1, ka:210,  ca:75,  vc:0,   va:0,     ho:0   },
+  { n:'Špinača 150g',               cat:'zelenjava', k:35,  b:4,  o:3,  m:0.5, vl:4,  že:4.1, ka:560,  ca:150, vc:25,  va:11000, ho:0   },
+  { n:'Brokoli 200g',               cat:'zelenjava', k:70,  b:6,  o:11, m:0.8, vl:5,  že:1.4, ka:640,  ca:90,  vc:180, va:1200,  ho:0   },
+  { n:'Rdeča paprika 150g',         cat:'zelenjava', k:45,  b:1,  o:10, m:0.3, vl:2.5,že:0.7, ka:315,  ca:12,  vc:210, va:3800,  ho:0   },
+  { n:'Korenček 150g',              cat:'zelenjava', k:55,  b:1,  o:13, m:0.3, vl:3.5,že:0.6, ka:420,  ca:45,  vc:7,   va:15000, ho:0   },
 ]
 
 const MIKRO_CILJI_DB = { že:18, ka:3500, ca:1000, vc:90, va:5000, vl:30 }
+
+const HRANA_PREF_KEY = 'maraton_hrana_pref'
+const PREF_SCORE = [0, -50, -20, 5, 15, 30] // indeks = prioriteta 1–5, 0 = nenastavljena
+
+const HRANA_KATEGORIJE = [
+  { id:'protein',   naziv:'Proteini' },
+  { id:'mlecni',    naziv:'Mlečni izdelki' },
+  { id:'strocnice', naziv:'Stročnice' },
+  { id:'zita',      naziv:'Žita & OH' },
+  { id:'zelenjava', naziv:'Zelenjava' },
+  { id:'sadje',     naziv:'Sadje & Oreščki' },
+]
+
+const PREF_BG   = ['#111827','#450a0a','#431407','#0f172a','#052e16','#14532d']
+const PREF_TEXT = ['#334155','#fca5a5','#fed7aa','#93c5fd','#86efac','#4ade80']
+const PREF_LABEL = ['','1 – redko','2 – včasih','3 – pogosto','4 – redno','5 – vsak dan']
+
+function usePrioritete() {
+  const [pref, setPref] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(HRANA_PREF_KEY)) || {} }
+    catch { return {} }
+  })
+  const set = React.useCallback((name, val) => {
+    setPref(p => {
+      const next = val === 0
+        ? Object.fromEntries(Object.entries(p).filter(([k]) => k !== name))
+        : { ...p, [name]: val }
+      localStorage.setItem(HRANA_PREF_KEY, JSON.stringify(next))
+      return next
+    })
+  }, [])
+  const reset = React.useCallback(() => {
+    localStorage.removeItem(HRANA_PREF_KEY)
+    setPref({})
+  }, [])
+  return [pref, set, reset]
+}
+
+function NastavitveHrane({ prioritete, setPrioriteta, resetAll }) {
+  const [open, setOpen] = React.useState(false)
+  const ratedCount = Object.keys(prioritete).length
+
+  return (
+    <div style={{marginBottom:12}}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{background:'none',border:'1px solid #1e2433',color:'#64748b',padding:'6px 12px',borderRadius:6,cursor:'pointer',fontSize:11,fontFamily:'DM Mono',display:'flex',alignItems:'center',gap:8}}
+      >
+        <span>Nastavi moje hrane</span>
+        {ratedCount > 0 && <span style={{color:'#4ade80'}}>{ratedCount}/{HRANA_DB.length} ocenjenih</span>}
+        <span style={{fontSize:9}}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{marginTop:10,padding:'12px 14px',background:'#070d1a',border:'1px solid #1e2433',borderRadius:8}}>
+          <div style={{fontSize:10,color:'#475569',marginBottom:12,fontFamily:'DM Mono',lineHeight:1.6}}>
+            Oceni kako pogosto ješ vsako živilo — jedilnik bo prednostno predlagal višje ocenjena živila.
+            <br/><span style={{color:'#334155'}}>Klikni isto številko za razveljavitev ocene.</span>
+          </div>
+          {HRANA_KATEGORIJE.map(kat => {
+            const foods = HRANA_DB.filter(h => h.cat === kat.id)
+            return (
+              <div key={kat.id} style={{marginBottom:16}}>
+                <div style={{fontSize:10,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:7}}>{kat.naziv}</div>
+                {foods.map(h => {
+                  const p = prioritete[h.n] || 0
+                  return (
+                    <div key={h.n} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5,gap:8}}>
+                      <span style={{fontSize:12,color: p > 0 ? '#cbd5e1' : '#475569',flex:1,minWidth:0}}>{h.n}</span>
+                      <div style={{display:'flex',gap:3,flexShrink:0}}>
+                        {[1,2,3,4,5].map(v => (
+                          <button key={v}
+                            onClick={() => setPrioriteta(h.n, p === v ? 0 : v)}
+                            title={PREF_LABEL[v]}
+                            style={{
+                              width:26,height:22,borderRadius:4,fontSize:11,fontFamily:'DM Mono',fontWeight:600,
+                              background: p === v ? PREF_BG[v] : '#111827',
+                              border: `1px solid ${p === v ? PREF_TEXT[v]+'80' : '#1e2433'}`,
+                              color: p === v ? PREF_TEXT[v] : '#334155',
+                              cursor:'pointer',padding:0,transition:'all .1s',
+                            }}
+                          >{v}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+          {ratedCount > 0 && (
+            <button onClick={resetAll} style={{fontSize:10,color:'#475569',background:'none',border:'1px solid #1e2433',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontFamily:'DM Mono',marginTop:4}}>
+              Ponastavi vse
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const OBROKI_DEF = [
   { id:'zajtrk',    naziv:'Zajtrk',    cas:'7:00',  ikona:'🌅', pct:0.25,
@@ -42,7 +142,7 @@ const OBROKI_DEF = [
     preferred: new Set(['Losos 150g','Sardine 100g','Tofu 150g','Testenine polnozrnate 200g','Špinača 150g','Rdeča paprika 150g','Sir gouda 30g']) },
 ]
 
-function PredlogObroka({ mikro, danes, cilj }) {
+function PredlogObroka({ mikro, danes, cilj, prioritete, setPrioriteta, resetAll }) {
   const [ostanek, setOstanek] = React.useState(() => {
     if (danes) return {
       kcal: Math.max(0, Math.round((cilj.kcal||2000) - (danes.kalorije_skupaj||0))),
@@ -69,8 +169,9 @@ function PredlogObroka({ mikro, danes, cilj }) {
       .filter(Boolean)
     const holesterolVisok = mikro.holesterol && mikro.holesterol > 400
 
-    const scoreFood = (h, rk, rb, ro, rm, isPreferred) => {
-      let s = isPreferred ? 14 : 0
+    const scoreFood = (h, rk, rb, ro, rm, mealPref) => {
+      const userPrio = prioritete[h.n] || 0
+      let s = PREF_SCORE[userPrio] + (mealPref ? 8 : 0)
       if (rb > 5)  s += Math.min(1, h.b/rb) * 35
       if (ro > 10) s += Math.min(1, h.o/ro) * 25
       if (rm > 5)  s += Math.min(1, h.m/rm) * 10
@@ -96,6 +197,7 @@ function PredlogObroka({ mikro, danes, cilj }) {
         const next = HRANA_DB
           .filter(h => !usedNames.has(h.n))
           .map(h => ({ ...h, s: scoreFood(h, rk, rb, ro, rm, obrok.preferred.has(h.n)) }))
+
           .sort((a,b) => b.s-a.s)[0]
         if (!next || (next.k > rk*2 && hrana.length > 0)) break
         hrana.push(next)
@@ -141,6 +243,7 @@ function PredlogObroka({ mikro, danes, cilj }) {
       <div style={{fontSize:11,color:'#475569',marginBottom:10}}>
         Vnesi koliko ti še manjka do cilja — sestavim jedilnik po obrokih z upoštevanjem mikronutrientnih trendov (7d povprečje).
       </div>
+      <NastavitveHrane prioritete={prioritete} setPrioriteta={setPrioriteta} resetAll={resetAll} />
       {danes && <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginBottom:10}}>auto-izpolnjeno iz MFP ({TODAY_STR}) · uredi po potrebi</div>}
       <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:12,alignItems:'flex-end'}}>
         {[
@@ -237,7 +340,93 @@ function PredlogObroka({ mikro, danes, cilj }) {
   )
 }
 
+function PredlogiRednaPrehrana({ mikro, prioritete }) {
+  const mikroMap = { že:mikro.železo, ka:mikro.kalij, ca:mikro.kalcij, vc:mikro.vitamin_c, va:mikro.vitamin_a, vl:mikro.vlaknine }
+  const mikroNaziv = { že:'Železo', ka:'Kalij', ca:'Kalcij', vc:'Vitamin C', va:'Vitamin A', vl:'Vlaknine' }
+  const mikroEnota = { že:'mg', ka:'mg', ca:'mg', vc:'mg', va:'IU', vl:'g' }
+
+  const deficiti = Object.entries(MIKRO_CILJI_DB)
+    .map(([key, cilj]) => {
+      const val = mikroMap[key]; if (!val) return null
+      const pct = val / cilj; if (pct >= 0.85) return null
+      return { key, cilj, val, pct }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.pct - b.pct)
+
+  if (deficiti.length === 0) return null
+
+  const predlogi = deficiti.slice(0, 4).map(def => {
+    const top = [...HRANA_DB]
+      .filter(h => (h[def.key] || 0) > 0)
+      .map(h => ({ ...h, contrib: (h[def.key]||0)/def.cilj, contribVal: h[def.key]||0, userPrio: prioritete[h.n]||0 }))
+      .sort((a, b) => {
+        const sA = a.contrib * 100 + a.userPrio * 5
+        const sB = b.contrib * 100 + b.userPrio * 5
+        return sB - sA
+      })
+      .slice(0, 4)
+    return { ...def, top }
+  })
+
+  return (
+    <div className="card" style={{marginBottom:16}}>
+      <h3>Dodaj v redno prehrano</h3>
+      <div style={{fontSize:11,color:'#475569',marginBottom:14}}>
+        Živila ki bi najbolj popravila tvoje problematične mikronutrientne trende (7d povprečje).
+        Tista ki so v tvojem jedilniku so označena z ★.
+      </div>
+      {predlogi.map(def => (
+        <div key={def.key} style={{marginBottom:16}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+            <span style={{
+              fontSize:10,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'.5px',
+              color: def.pct < 0.55 ? '#fca5a5' : '#fbbf24',
+              padding:'2px 8px',borderRadius:4,
+              background: def.pct < 0.55 ? '#2d0505' : '#1a1200',
+              border: `1px solid ${def.pct < 0.55 ? '#7f1d1d' : '#78350f'}`,
+            }}>
+              {mikroNaziv[def.key]}
+            </span>
+            <span style={{fontSize:10,color:'#64748b',fontFamily:'DM Mono'}}>
+              {def.key==='vl'||def.key==='že' ? Math.round(def.val*10)/10 : Math.round(def.val)}
+              /{def.cilj}{mikroEnota[def.key]} · {Math.round(def.pct*100)}% cilja
+            </span>
+          </div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+            {def.top.map(h => {
+              const prio = h.userPrio
+              const isHighPrio = prio >= 4
+              const isLowPrio = prio > 0 && prio <= 2
+              const dispVal = def.key==='vl'||def.key==='že'
+                ? `+${Math.round(h.contribVal*10)/10}${mikroEnota[def.key]}`
+                : `+${Math.round(h.contribVal)}${mikroEnota[def.key]}`
+              return (
+                <div key={h.n} style={{
+                  padding:'7px 11px',borderRadius:8,
+                  background: isHighPrio ? '#052e16' : '#0c1120',
+                  border: `1px solid ${isHighPrio ? '#14532d' : isLowPrio ? '#2d1515' : '#1e2433'}`,
+                  opacity: isLowPrio ? 0.6 : 1,
+                }}>
+                  <div style={{fontSize:11,color: isLowPrio?'#64748b':'#e2e8f0',marginBottom:2,fontWeight:isHighPrio?600:400}}>
+                    {h.n}{prio >= 4 && <span style={{color:'#4ade80',marginLeft:5,fontSize:10}}>★</span>}
+                  </div>
+                  <div style={{fontSize:10,fontFamily:'DM Mono',color:'#4ade80'}}>
+                    {dispVal} · {Math.round(h.contrib*100)}% dnevnega cilja
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], onRefresh}){
+  const [prioritete, setPrioriteta, resetAll] = usePrioritete()
+
   // Vedno prikaži včerajšnje podatke
   const vceraj = prehrana.find(p => p.datum === YESTERDAY_STR) || prehrana.filter(p => p.kalorije_skupaj > 0)[0] || {}
 
@@ -814,7 +1003,10 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
       )
     })()}
 
-    <PredlogObroka mikro={mikro} danes={danesPrehrana} cilj={ciljiDanes} />
+    <PredlogObroka mikro={mikro} danes={danesPrehrana} cilj={ciljiDanes}
+      prioritete={prioritete} setPrioriteta={setPrioriteta} resetAll={resetAll} />
+
+    <PredlogiRednaPrehrana mikro={mikro} prioritete={prioritete} />
 
   </>)
 
