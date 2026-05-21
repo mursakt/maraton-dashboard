@@ -1,8 +1,7 @@
 import React from 'react'
 import { PLAN, TODAY, TODAY_STR, YESTERDAY_STR } from '../constants/plan'
-import { izracunajLoad, izracunajPripravljenost, opozoriloPredTreningom } from '../utils/calculations'
+import { izracunajPripravljenost } from '../utils/calculations'
 import { isTek, fmt, formaColor, formaLabel, pripravljenostColor, pripravljenostLabel } from '../utils/helpers'
-import { secToHMS } from '../utils/tempo'
 import { StatCard } from './StatCard'
 import { AlarmiPanel } from './AlarmiPanel'
 
@@ -11,10 +10,8 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
   const tedStart=planTeden?new Date(planTeden.datum):new Date()
   const tedEnd=new Date(tedStart);tedEnd.setDate(tedEnd.getDate()+7)
   const kmTaTeden=workouts.filter(w=>{const d=new Date(w.datum);return d>=tedStart&&d<tedEnd&&isTek(w)}).reduce((s,w)=>s+(w.razdalja_km||0),0)
-  const z=metrike[0]||{}
   const zadnjaTeza=metrike.find(m=>m.teza_kg)?.teza_kg
   const pripravljenost = izracunajPripravljenost(metrike, prehrana, workouts)
-  const opozorilo = opozoriloPredTreningom(workouts, prehrana)
 
   // Kalorijski deficit/suficit
   // Zadnji datum z MFP podatki (ne danes)
@@ -44,9 +41,6 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
 
   const kmPlan=planTeden?.km||0
   const dniDoMaratona=Math.ceil((new Date('2026-10-17')-TODAY)/(1000*60*60*24))
-  const predCas = predikcija ? secToHMS(predikcija.casFinal) : null
-  const ciljSec = 3*3600+45*60
-  const diffSec = predikcija ? predikcija.casFinal - ciljSec : null
 
   return(<>
     <AlarmiPanel workouts={workouts} metrike={metrike} prehrana={prehrana} />
@@ -68,40 +62,6 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
       <StatCard title="Dni do maratona" value={dniDoMaratona} sub="17. oktober 2026"/>
     </div>
 
-    {/* Analiza zadnjega teka */}
-    {/* AI Analiza teka */}
-    {/* Load kartice */}
-    {(() => {
-      const { atl, ctl, razmerje, razmerjeOpis, razmerjeColor } = izracunajLoad(workouts)
-      return (
-        <div className="grid3" style={{marginBottom:16}}>
-          <div className="card">
-            <h3>Akutni Load — ATL (7 dni)</h3>
-            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
-              <span className="stat-val" style={{color: atl > 200 ? '#ef4444' : atl > 100 ? '#eab308' : '#22c55e'}}>{atl}</span>
-              <span style={{fontSize:12,color: atl > 200 ? '#ef4444' : atl > 100 ? '#eab308' : '#22c55e',fontWeight:500}}>{atl > 200 ? 'visok' : atl > 100 ? 'zmeren' : 'nizek'}</span>
-            </div>
-            <div className="stat-sub">kratkoročna utrujenost · optimalno: 80–150</div>
-          </div>
-          <div className="card">
-            <h3>Kronični Load — CTL (28 dni)</h3>
-            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
-              <span className="stat-val" style={{color: ctl < 30 ? '#6b7280' : ctl < 60 ? '#3b82f6' : '#22c55e'}}>{ctl}</span>
-              <span style={{fontSize:12,color: ctl < 30 ? '#6b7280' : ctl < 60 ? '#3b82f6' : '#22c55e',fontWeight:500}}>{ctl < 30 ? 'nizek' : ctl < 60 ? 'zmeren' : 'visok'}</span>
-            </div>
-            <div className="stat-sub">fitnes baza · višji = boljša baza</div>
-          </div>
-          <div className="card">
-            <h3>ATL/CTL Razmerje</h3>
-            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
-              <span className="stat-val" style={{color: razmerjeColor}}>{razmerje !== null ? razmerje.toFixed(2) : '—'}</span>
-              <span style={{fontSize:12,color: razmerjeColor,fontWeight:500}}>{razmerjeOpis}</span>
-            </div>
-            <div className="stat-sub">optimalno: 0.8–1.3 · &gt;1.5 = nevarnost</div>
-          </div>
-        </div>
-      )
-    })()}
 
     {/* Kalorije: porabljene vs zaužite */}
       <div className="card" style={{marginBottom:16}}>

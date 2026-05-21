@@ -1,5 +1,5 @@
 import React from 'react'
-import { CILJI } from '../constants/plan'
+import { CILJI, PLAN, getCurrentTeden } from '../constants/plan'
 import { izracunajLoad } from '../utils/calculations'
 import { isTek } from '../utils/helpers'
 
@@ -26,6 +26,15 @@ export function AlarmiPanel({ workouts, metrike, prehrana }) {
   const kmPrej = workouts.filter(w => { const d=new Date(w.datum); return d>=new Date(now-14*86400000)&&d<new Date(now-7*86400000)&&isTek(w) }).reduce((s,w)=>s+(w.razdalja_km||0),0)
   if (kmPrej > 5 && kmTa > kmPrej * 1.15)
     alarmi.push({ nivo:'opozorilo', kat:'Trening', naziv:`Km ta teden +${Math.round((kmTa/kmPrej-1)*100)}% (${Math.round(kmTa)} vs ${Math.round(kmPrej)}km)`, fix:'Porast nad 10%/teden poveča tveganje poškodbe.' })
+
+  // TRENING: premalo km glede na plan
+  const currentTeden = getCurrentTeden()
+  const planTeden = PLAN.find(p => p.teden === currentTeden)
+  if (planTeden && planTeden.km > 0 && now.getDay() >= 4) {
+    const pct = Math.round(kmTa / planTeden.km * 100)
+    if (pct < 60)
+      alarmi.push({ nivo:'opozorilo', kat:'Trening', naziv:`Le ${Math.round(kmTa)} od ${planTeden.km} km ta teden (${pct}% plana)`, fix:`${Math.round(planTeden.km - kmTa)} km manjka — povečaj obseg do konca tedna.` })
+  }
 
   // ── HRV ──────────────────────────────────────────────────
   const hrv3  = avg(metrike.slice(0,  3), 'hrv')
@@ -122,9 +131,9 @@ export function AlarmiPanel({ workouts, metrike, prehrana }) {
   }
 
   // ── MIKROHRANILA ─────────────────────────────────────────
-  const z7m = prehrana.filter(p => p.natrij_mg > 0).slice(0, 7)
+  const z7m = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 7)
   if (z7m.length >= 2) {
-    const avgM = key => { const v = z7m.map(p => p[key]).filter(x => x > 0); return v.length ? v.reduce((s,x)=>s+x,0)/v.length : null }
+    const avgM = key => { const v = z7m.map(p => p[key]).filter(x => x != null && x > 0); return v.length ? v.reduce((s,x)=>s+x,0)/v.length : null }
     const FIX = {
       železo_mg:    { krit:'Leča 200g + špinača + vitamin C za absorpcijo.', opo:'Dodaj lečo ali goveje meso.' },
       kalcij_mg:    { krit:'Sardine, tofu, skyr, jogurt.', opo:'Dodaj mlečne ali sardine.' },
@@ -169,7 +178,7 @@ export function AlarmiPanel({ workouts, metrike, prehrana }) {
   const cutoff4w = new Date(now - 28*86400000).toISOString().slice(0,10)
   const vo2Pred4 = vo2Sorted.find(w => w.datum <= cutoff4w)?.vo2max
   if (vo2Zdaj && vo2Pred4 && vo2Pred4 - vo2Zdaj > 1)
-    alarmi.push({ nivo:'opozorilo', kat:'Forma', naziv:`VO2max pada: ${vo2Zdaj.toFixed(1)} → ${vo2Pred4.toFixed(1)} ml/kg/min (4 tedni)`, fix:'Preveri ali je dovolj intenzivnih treningov v programu.' })
+    alarmi.push({ nivo:'opozorilo', kat:'Forma', naziv:`VO2max pada: ${vo2Pred4.toFixed(1)} → ${vo2Zdaj.toFixed(1)} ml/kg/min (4 tedni)`, fix:'Preveri ali je dovolj intenzivnih treningov v programu.' })
 
   // ── SORT & RENDER ─────────────────────────────────────────
   const kritični  = alarmi.filter(a => a.nivo === 'kritično')

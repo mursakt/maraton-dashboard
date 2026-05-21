@@ -16,7 +16,6 @@ export function TabTelo({metrike, workouts=[]}){
   const hrvData=metrike.filter(m=>m.hrv).slice(0,28).reverse().map(m=>({datum:m.datum?.slice(5),hrv:m.hrv}))
   const hrvMax = hrvData.length > 0 ? Math.max(...hrvData.map(d => d.hrv)) + 5 : 100
   const spanjeData=metrike.filter(m=>m.spanje_h).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),ure:m.spanje_h}))
-  const formaData=metrike.slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),forma:izracunajFormo(m.hrv,m.spanje_h,m.stres_povprecje)})).filter(d=>d.forma!==null)
   const bbData=metrike.filter(m=>m.body_battery_charged||m.body_battery_drained).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),charged:m.body_battery_charged,drained:m.body_battery_drained,net:(m.body_battery_charged||0)-(m.body_battery_drained||0)}))
   const restingHrData=metrike.filter(m=>m.resting_hr).slice(0,20).reverse().map(m=>({datum:m.datum?.slice(5),hr:m.resting_hr}))
   const korakiData=metrike.filter(m=>m.koraki).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),koraki:m.koraki}))
@@ -99,38 +98,48 @@ export function TabTelo({metrike, workouts=[]}){
       ):<div className="empty">Ni dovolj podatkov</div>}
     </div>
 
-    {/* HRV + Mirovni HR trend */}
-    <div className="grid2">
-      <div className="card">
-        <h3>HRV (ms)</h3>
-        {hrvData.length>1?(
+    {/* HRV + Mirovni HR — skupen graf */}
+    {(() => {
+      const map = {}
+      hrvData.forEach(d => { map[d.datum] = { ...(map[d.datum]||{}), hrv: d.hrv } })
+      restingHrData.forEach(d => { map[d.datum] = { ...(map[d.datum]||{}), hr: d.hr } })
+      const merged = Object.entries(map).sort().slice(-20).map(([datum, v]) => ({ datum, ...v }))
+      const hrMin = restingHrData.length ? Math.min(...restingHrData.map(d=>d.hr)) - 3 : 40
+      const hrMax = restingHrData.length ? Math.max(...restingHrData.map(d=>d.hr)) + 3 : 70
+      return merged.length > 1 ? (
+        <div className="card" style={{marginBottom:16}}>
+          <h3>HRV &amp; Mirovni HR</h3>
+          <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>
+            <span style={{color:'#22c55e'}}>— HRV</span> (levo, ms) &nbsp;·&nbsp;
+            <span style={{color:'#3b82f6'}}>— Mirovni HR</span> (desno, bpm · os obrnjena: nižji HR = zgoraj)
+          </div>
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-            <LineChart data={hrvData} margin={{top:4,right:4,left:-20,bottom:0}}>
+            <ComposedChart data={merged} margin={{top:4,right:8,left:4,bottom:0}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval={xInterval(hrvData.length)}/>
-              <YAxis domain={[30, hrvMax]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
-              <ReferenceLine y={50} stroke="#22c55e" strokeDasharray="4 4"/>
-              <Line type="monotone" dataKey="hrv" stroke="#22c55e" strokeWidth={2} dot={false}/>
-            </LineChart>
+              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval={xInterval(merged.length)}/>
+              <YAxis yAxisId="hrv" domain={[30, hrvMax]} tick={{fontSize:10,fill:'#22c55e',fontFamily:'DM Mono'}} width={28}/>
+              <YAxis yAxisId="hr" orientation="right" reversed={true} domain={[hrMin, hrMax]} tick={{fontSize:10,fill:'#3b82f6',fontFamily:'DM Mono'}} width={30}/>
+              <ReferenceLine yAxisId="hrv" y={50} stroke="#22c55e" strokeDasharray="4 4" opacity={0.5}/>
+              <Tooltip
+                content={({active,payload,label}) => {
+                  if (!active || !payload?.length) return null
+                  const d = payload[0]?.payload
+                  return (
+                    <div style={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
+                      <div style={{color:'#64748b',marginBottom:4}}>{label}</div>
+                      {d.hrv && <div style={{color:'#22c55e'}}>HRV: {d.hrv} ms</div>}
+                      {d.hr  && <div style={{color:'#3b82f6'}}>Mirovni HR: {d.hr} bpm</div>}
+                    </div>
+                  )
+                }}
+              />
+              <Line yAxisId="hrv" type="monotone" dataKey="hrv" stroke="#22c55e" strokeWidth={2} dot={false} connectNulls={false}/>
+              <Line yAxisId="hr"  type="monotone" dataKey="hr"  stroke="#3b82f6" strokeWidth={2} dot={false} connectNulls={false}/>
+            </ComposedChart>
           </ResponsiveContainer>
-        ):<div className="empty">Ni dovolj podatkov</div>}
-      </div>
-      <div className="card">
-        <h3>Mirovni HR trend</h3>
-        {restingHrData.length>1?(
-          <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-            <LineChart data={restingHrData} margin={{top:4,right:8,left:-10,bottom:0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval={xInterval(restingHrData.length)}/>
-              <YAxis domain={['auto','auto']} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[`${v} bpm`,'Mirovni HR']}/>
-              <Line type="monotone" dataKey="hr" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}}/>
-            </LineChart>
-          </ResponsiveContainer>
-        ):<div className="empty">Ni dovolj podatkov</div>}
-      </div>
-    </div>
+        </div>
+      ) : <div className="empty">Ni dovolj podatkov</div>
+    })()}
 
     {/* Spanje + Koraki */}
     <div className="grid2">
@@ -174,41 +183,24 @@ export function TabTelo({metrike, workouts=[]}){
       </div>
     </div>
 
-    {/* Forma trend + Body Battery */}
-    <div className="grid2">
-      <div className="card">
-        <h3>Forma trend (zadnjih 14 dni)</h3>
-        {formaData.length>1?(
-          <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-            <LineChart data={formaData} margin={{top:4,right:4,left:-20,bottom:0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval={xInterval(formaData.length)}/>
-              <YAxis domain={[3,10]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[fmt(v,1),'Forma']}/>
-              <ReferenceLine y={6} stroke="#eab308" strokeDasharray="5 3" strokeWidth={1.5} strokeOpacity={0.7}/>
-              <Line type="monotone" dataKey="forma" stroke="#f59e0b" strokeWidth={2} dot={{r:3,fill:'#f59e0b'}}/>
-            </LineChart>
-          </ResponsiveContainer>
-        ):<div className="empty">Ni dovolj podatkov</div>}
-      </div>
-      <div className="card">
-        <h3>Body Battery — zadnjih 14 dni</h3>
-        {bbData.length>1?(
-          <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-            <ComposedChart data={bbData} margin={{top:4,right:8,left:-10,bottom:0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval={xInterval(bbData.length)}/>
-              <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-              <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}
-                formatter={(v,n)=>n==='charged'?[`+${v}`,'Polnjenje']:n==='drained'?[`-${v}`,'Praznjenje']:[`${v>0?'+':''}${v}`,'Neto']}/>
-              <Bar dataKey="charged" name="charged" fill="#22c55e" opacity={0.7} radius={[3,3,0,0]}/>
-              <Bar dataKey="drained" name="drained" fill="#ef4444" opacity={0.7} radius={[3,3,0,0]}/>
-              <Line type="monotone" dataKey="net" name="net" stroke="#f59e0b" strokeWidth={2}
-                dot={(p)=><circle key={p.cx} cx={p.cx} cy={p.cy} r={3} fill={p.payload.net>=0?'#22c55e':'#ef4444'} stroke="none"/>}/>
-            </ComposedChart>
-          </ResponsiveContainer>
-        ):<div className="empty">Ni dovolj podatkov</div>}
-      </div>
+    {/* Body Battery */}
+    <div className="card">
+      <h3>Body Battery — zadnjih 14 dni</h3>
+      {bbData.length>1?(
+        <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+          <ComposedChart data={bbData} margin={{top:4,right:8,left:-10,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+            <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval={xInterval(bbData.length)}/>
+            <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+            <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}
+              formatter={(v,n)=>n==='charged'?[`+${v}`,'Polnjenje']:n==='drained'?[`-${v}`,'Praznjenje']:[`${v>0?'+':''}${v}`,'Neto']}/>
+            <Bar dataKey="charged" name="charged" fill="#22c55e" opacity={0.7} radius={[3,3,0,0]}/>
+            <Bar dataKey="drained" name="drained" fill="#ef4444" opacity={0.7} radius={[3,3,0,0]}/>
+            <Line type="monotone" dataKey="net" name="net" stroke="#f59e0b" strokeWidth={2}
+              dot={(p)=><circle key={p.cx} cx={p.cx} cy={p.cy} r={3} fill={p.payload.net>=0?'#22c55e':'#ef4444'} stroke="none"/>}/>
+          </ComposedChart>
+        </ResponsiveContainer>
+      ):<div className="empty">Ni dovolj podatkov</div>}
     </div>
   </>)
 }

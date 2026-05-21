@@ -52,8 +52,8 @@ export function TabPredikcija({predikcija, workouts}){
         ))}
         <div className="faktor-row">
           <span className="faktor-label">Trend napredka</span>
-          <span className="faktor-val" style={{color:trend&&trend>0?'#22c55e':trend&&trend<0?'#f97316':'#94a3b8'}}>
-            {trend===null?'—':trend>0?`-${secToHMS(Math.abs(trend)).slice(1)}`:trend<0?`+${secToHMS(Math.abs(trend)).slice(1)}`:'0'}
+          <span className="faktor-val" style={{color: trend===null||trend===0?'#94a3b8':trend>0?'#22c55e':'#f97316'}}>
+            {trend===null?'—':trend===0?'0':trend>0?`−${secToHMS(trend).slice(1)} ↑`:`+${secToHMS(Math.abs(trend)).slice(1)} ↓`}
           </span>
         </div>
       </div>
@@ -75,5 +75,66 @@ export function TabPredikcija({predikcija, workouts}){
       </div>
     )}
     <div className="alert info" style={{marginTop:16}}>ℹ️ Predikcija temelji na {steviloTekov} treningih in se bo izboljševala z vsakim novim tekom. Zanesljivost bo visoka (&gt;70%) od T10 naprej.</div>
+
+    {(() => {
+      // Potrebni VO2max za 3:45 (obratna formula)
+      const ciljMin = 225
+      const potrebniVVO2max = 42195 / (ciljMin * 0.77)
+      const a = 0.007546, b = -5.000663, c = potrebniVVO2max - 29.54
+      const disc = b*b - 4*a*c
+      const potrebniVO2 = disc >= 0 ? Math.round((-b - Math.sqrt(disc)) / (2*a) * 10) / 10 : 46
+      const vo2Gap = vo2Uporabljen ? Math.round((potrebniVO2 - vo2Uporabljen) * 10) / 10 : null
+      const potrebniTempo = 320 // 5:20/km pri HR 155 za 3:45
+      const tempoGapSec = tempoNa155 ? tempoNa155 - potrebniTempo : null
+      const potrebniKm = 60
+      const kmGap = maxKm ? Math.round(potrebniKm - maxKm) : null
+
+      const rows = [
+        {
+          label: 'VO2max',
+          cilj: `≥ ${potrebniVO2} ml/kg/min`,
+          trenutno: vo2Uporabljen ? `${fmt(vo2Uporabljen,1)} ml/kg/min` : '—',
+          ok: vo2Gap !== null && vo2Gap <= 0,
+          gap: vo2Gap !== null && vo2Gap > 0 ? `+${fmt(vo2Gap,1)} ml/kg/min za doseči` : null,
+        },
+        {
+          label: 'Tempo pri HR 155',
+          cilj: '≤ 5:20/km',
+          trenutno: tempoNa155 ? `${secToTempoStr(tempoNa155)}/km` : '—',
+          ok: tempoGapSec !== null && tempoGapSec <= 0,
+          gap: tempoGapSec !== null && tempoGapSec > 0 ? `${Math.round(tempoGapSec)}s/km prepočasen` : null,
+        },
+        {
+          label: 'Max teden',
+          cilj: '≥ 60 km',
+          trenutno: `${fmt(maxKm,0)} km`,
+          ok: kmGap !== null && kmGap <= 0,
+          gap: kmGap !== null && kmGap > 0 ? `+${kmGap} km/teden manjka` : null,
+        },
+      ]
+
+      return (
+        <div className="card" style={{marginTop:16}}>
+          <h3>Kaj potrebujem za 3:45:00</h3>
+          <div style={{fontSize:11,color:'#475569',marginBottom:12,fontFamily:'DM Mono'}}>
+            {diffSec > 0
+              ? `Trenutno ${Math.floor(diffSec/60)}min ${Math.round(diffSec%60)}s nad ciljnim časom — fokus na:`
+              : '✓ Cilj je že dosegljiv — ohranjaj formo.'}
+          </div>
+          {rows.map(({label,cilj,trenutno,ok,gap},i) => (
+            <div key={i} style={{display:'flex',alignItems:'baseline',gap:10,marginBottom:10,flexWrap:'wrap',paddingBottom:10,borderBottom:i<rows.length-1?'1px solid #0a0f1a':'none'}}>
+              <span style={{fontSize:11,fontFamily:'DM Mono',color:'#475569',minWidth:140}}>{label}</span>
+              <span style={{fontSize:13,fontFamily:'DM Mono',color:ok?'#22c55e':'#94a3b8'}}>{trenutno}</span>
+              {ok
+                ? <span style={{fontSize:11,color:'#22c55e',fontFamily:'DM Mono'}}>✓ cilj dosežen ({cilj})</span>
+                : gap
+                  ? <span style={{fontSize:11,color:'#f97316',fontFamily:'DM Mono'}}>⚠ {gap} · cilj: {cilj}</span>
+                  : <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono'}}>cilj: {cilj}</span>
+              }
+            </div>
+          ))}
+        </div>
+      )
+    })()}
   </>)
 }

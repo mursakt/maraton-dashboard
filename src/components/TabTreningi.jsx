@@ -4,7 +4,6 @@ import { TODAY } from '../constants/plan'
 import { izracunajLoad, analizirajTek } from '../utils/calculations'
 import { isTek, fmt, hrZona, hrZonaColor } from '../utils/helpers'
 import { StatCard } from './StatCard'
-import { AnalizaTeka } from './AnalizaTeka'
 import { supabase } from '../supabase'
 
 const OCENE = [
@@ -296,6 +295,26 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
         </ResponsiveContainer>
       ) : <div className="empty">Ni dovolj podatkov</div>}
     </div>
+
+    {vo2Data.length > 1 && (
+      <div className="card" style={{marginBottom:16}}>
+        <h3>VO2max trend</h3>
+        <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>
+          Cilj: <span style={{color:'#22c55e'}}>52 ml/kg/min</span> za sub 3:45
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <ComposedChart data={vo2Data} margin={{top:4,right:8,left:4,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+            <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
+            <YAxis domain={['auto','auto']} tick={{fontSize:10,fill:'#a78bfa',fontFamily:'DM Mono'}} width={28}/>
+            <ReferenceLine y={52} stroke="#22c55e" strokeDasharray="4 2" strokeWidth={1} label={{value:'cilj 52',position:'insideTopRight',fontSize:9,fill:'#22c55e'}}/>
+            <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}} formatter={v=>[`${fmt(v,1)} ml/kg/min`,'VO2max']}/>
+            <Line type="monotone" dataKey="vo2" stroke="#a78bfa" strokeWidth={2} dot={{r:4,fill:'#a78bfa'}}/>
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    )}
+
     {/* Load kartice */}
     {(() => {
       const { atl, ctl, razmerje, razmerjeOpis, razmerjeColor } = izracunajLoad(workouts)
