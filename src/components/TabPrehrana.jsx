@@ -72,6 +72,7 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
   const mikro = {
     natrij: avgM('natrij_mg'), kalij: avgM('kalij_mg'), vlaknine: avgM('vlaknine_g'),
     sladkorji: avgM('sladkorji_g'), vitamin_c: avgM('vitamin_c_mg'), železo: avgM('železo_mg'),
+    kalcij: avgM('kalcij_mg'), holesterol: avgM('holesterol_mg'), vitamin_a: avgM('vitamin_a_iu'),
   }
 
   const kritično = [], opozorila = [], vRedu = []
@@ -127,12 +128,22 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
         presežekPct:150, presežekMsg:(p,v) => `${Math.round(v)}mg = ${p}% cilja (2300mg). Zadržavanje vode, višji krvni tlak, slabša ekonomičnost teka.` },
       { key:'sladkorji', naziv:'Sladkorji',  cilj:50,   enota:'g',  kritPct:null, opoPct:null,
         presežekPct:150, presežekMsg:(p,v) => `${Math.round(v)}g = ${p}% cilja (50g). Nihanje krvnega sladkorja → energijski padci med tekom.` },
+      { key:'kalcij',    naziv:'Kalcij',     cilj:1000, enota:'mg', kritPct:40, opoPct:70,
+        msg:(p,v) => `${Math.round(v)}mg = ${p}% cilja (1000mg). Nizek kalcij → tveganje za stresne zlome kosti pri tekačih. Najpogostejša nutritivna poškodba pri vzdržljivostnih športnikih.`,
+        hrana:'Jogurt 200g = 240mg, sir 30g = 200mg, sardine 100g = 380mg, tofu 100g = 350mg, mandlji 30g = 75mg, brokoli 200g = 90mg.' },
+      { key:'holesterol', naziv:'Holesterol', cilj:300,  enota:'mg', kritPct:null, opoPct:null,
+        presežekPct:120, presežekMsg:(p,v) => `${Math.round(v)}mg = ${p}% priporočenega max (300mg). Povišan LDL poveča kardiovaskularno tveganje na dolgi rok.`,
+        presežekKrit:250, presežekKritMsg:(p,v) => `${Math.round(v)}mg = ${p}% priporočenega max (300mg). Kronično visok holesterol škodi srčno-žilnemu sistemu, ki je osnova vzdržljivosti.` },
+      { key:'vitamin_a', naziv:'Vitamin A',  cilj:5000, enota:'IU', kritPct:40, opoPct:65,
+        msg:(p,v) => `${Math.round(v)}IU = ${p}% cilja (5000IU). Pomanjkanje vit. A slabi imunski sistem in nočni vid — kritično pri intenzivnih treningih.`,
+        hrana:'Goveja jetra 100g = 26000IU, sladki krompir 150g = 18000IU, korenček 100g = 10000IU, špinača 150g = 2800IU.' },
     ]
     mikroDef.forEach(m => {
       const v = mikro[m.key]; if (!v) return
       const p = pc(v, m.cilj)
       if (m.kritPct && p < m.kritPct) kritično.push({ naziv: m.naziv, msg: m.msg(p, v), fix: m.hrana })
       else if (m.opoPct && p < m.opoPct) opozorila.push({ naziv: m.naziv, msg: m.msg(p, v), fix: m.hrana })
+      else if (m.presežekKrit && p > m.presežekKrit) kritično.push({ naziv: `${m.naziv} — kritično visok`, msg: m.presežekKritMsg(p, v), fix: null })
       else if (m.presežekPct && p > m.presežekPct) opozorila.push({ naziv: `${m.naziv} — presežek`, msg: m.presežekMsg(p, v), fix: null })
       else if (m.kritPct) vRedu.push(`${m.naziv} ${Math.round(v*10)/10}${m.enota} (${p}%)`)
     })
