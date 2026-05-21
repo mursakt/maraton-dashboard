@@ -27,6 +27,40 @@ const HRANA_DB = [
   { n:'Brokoli 200g',               cat:'zelenjava', k:70,  b:6,  o:11, m:0.8, vl:5,  že:1.4, ka:640,  ca:90,  vc:180, va:1200,  ho:0   },
   { n:'Rdeča paprika 150g',         cat:'zelenjava', k:45,  b:1,  o:10, m:0.3, vl:2.5,že:0.7, ka:315,  ca:12,  vc:210, va:3800,  ho:0   },
   { n:'Korenček 150g',              cat:'zelenjava', k:55,  b:1,  o:13, m:0.3, vl:3.5,že:0.6, ka:420,  ca:45,  vc:7,   va:15000, ho:0   },
+  // +33 novih živil
+  { n:'Piščančja bedra 150g',       cat:'protein',   k:210, b:28, o:0,  m:10,  vl:0,  že:1.5, ka:330,  ca:15,  vc:0,   va:150,   ho:130 },
+  { n:'Skuša 100g',                 cat:'protein',   k:205, b:19, o:0,  m:13,  vl:0,  že:1.4, ka:315,  ca:12,  vc:0,   va:160,   ho:75  },
+  { n:'Goveje meso 150g',           cat:'protein',   k:240, b:35, o:0,  m:10,  vl:0,  že:3.8, ka:450,  ca:18,  vc:0,   va:0,     ho:90  },
+  { n:'Svinjski file 150g',         cat:'protein',   k:210, b:34, o:0,  m:7,   vl:0,  že:1.5, ka:480,  ca:10,  vc:0,   va:0,     ho:85  },
+  { n:'Kozice 150g',                cat:'protein',   k:120, b:26, o:1,  m:1.5, vl:0,  že:3.0, ka:260,  ca:90,  vc:0,   va:0,     ho:190 },
+  { n:'Skuta 200g',                 cat:'mlecni',    k:140, b:22, o:6,  m:3,   vl:0,  že:0.2, ka:200,  ca:120, vc:0,   va:80,    ho:20  },
+  { n:'Kefir 250ml',                cat:'mlecni',    k:110, b:8,  o:12, m:3,   vl:0,  že:0.1, ka:340,  ca:290, vc:2,   va:120,   ho:15  },
+  { n:'Mozzarella 80g',             cat:'mlecni',    k:200, b:15, o:2,  m:15,  vl:0,  že:0.2, ka:60,   ca:390, vc:0,   va:240,   ho:55  },
+  { n:'Mleko posneto 250ml',        cat:'mlecni',    k:90,  b:9,  o:12, m:0.5, vl:0,  že:0.1, ka:380,  ca:300, vc:2,   va:150,   ho:10  },
+  { n:'Čičerika kuhana 200g',       cat:'strocnice', k:330, b:18, o:54, m:5,   vl:12, že:5.0, ka:500,  ca:80,  vc:2,   va:45,    ho:0   },
+  { n:'Zeleni grah 150g',           cat:'strocnice', k:115, b:8,  o:20, m:0.5, vl:7,  že:2.1, ka:360,  ca:36,  vc:60,  va:900,   ho:0   },
+  { n:'Krompir kuhan 200g',         cat:'zita',      k:170, b:4,  o:38, m:0.2, vl:3.6,že:1.2, ka:900,  ca:14,  vc:18,  va:0,     ho:0   },
+  { n:'Polnozrnati kruh 2 rezini',  cat:'zita',      k:190, b:8,  o:36, m:2,   vl:5,  že:2.2, ka:200,  ca:40,  vc:0,   va:0,     ho:0   },
+  { n:'Kvinoja kuhana 200g',        cat:'zita',      k:240, b:9,  o:42, m:4,   vl:5,  že:2.8, ka:320,  ca:30,  vc:0,   va:10,    ho:0   },
+  { n:'Ajdova kaša 150g',           cat:'zita',      k:165, b:6,  o:34, m:1.5, vl:4.5,že:1.6, ka:220,  ca:12,  vc:0,   va:0,     ho:0   },
+  { n:'Brstični ohrovt 150g',       cat:'zelenjava', k:65,  b:5,  o:12, m:0.5, vl:5,  že:1.4, ka:450,  ca:56,  vc:145, va:1200,  ho:0   },
+  { n:'Cvetača 200g',               cat:'zelenjava', k:50,  b:4,  o:10, m:0.5, vl:4,  že:0.9, ka:600,  ca:44,  vc:92,  va:0,     ho:0   },
+  { n:'Bučke 200g',                 cat:'zelenjava', k:36,  b:3,  o:7,  m:0.4, vl:2,  že:0.7, ka:520,  ca:36,  vc:34,  va:400,   ho:0   },
+  { n:'Paradižnik 200g',            cat:'zelenjava', k:36,  b:2,  o:8,  m:0.4, vl:2.4,že:0.5, ka:480,  ca:20,  vc:38,  va:1500,  ho:0   },
+  { n:'Zelje 200g',                 cat:'zelenjava', k:50,  b:3,  o:12, m:0.2, vl:5,  že:0.9, ka:440,  ca:90,  vc:100, va:200,   ho:0   },
+  { n:'Jabolko',                    cat:'sadje',     k:95,  b:0.5,o:25, m:0.3, vl:4.4,že:0.2, ka:195,  ca:11,  vc:8,   va:100,   ho:0   },
+  { n:'Pomaranča',                  cat:'sadje',     k:85,  b:1.5,o:21, m:0.2, vl:4.3,že:0.2, ka:326,  ca:74,  vc:70,  va:295,   ho:0   },
+  { n:'Jagode 150g',                cat:'sadje',     k:48,  b:1,  o:12, m:0.5, vl:3,  že:0.6, ka:233,  ca:27,  vc:85,  va:18,    ho:0   },
+  { n:'Borovnice 100g',             cat:'sadje',     k:57,  b:0.7,o:14, m:0.3, vl:2.4,že:0.3, ka:77,   ca:6,   vc:10,  va:54,    ho:0   },
+  { n:'Kivi 2 kos',                 cat:'sadje',     k:90,  b:1.5,o:22, m:0.5, vl:4.5,že:0.5, ka:450,  ca:60,  vc:130, va:175,   ho:0   },
+  { n:'Orehi 30g',                  cat:'sadje',     k:196, b:4.5,o:4,  m:19,  vl:2,  že:0.9, ka:130,  ca:28,  vc:0.6, va:35,    ho:0   },
+  { n:'Indijski oreški 30g',        cat:'sadje',     k:165, b:5,  o:9,  m:13,  vl:0.9,že:1.9, ka:185,  ca:10,  vc:0.1, va:0,     ho:0   },
+  { n:'Buče semena 30g',            cat:'sadje',     k:165, b:9,  o:4,  m:14,  vl:1.7,že:2.6, ka:250,  ca:18,  vc:0.3, va:120,   ho:0   },
+  { n:'Chia semena 15g',            cat:'sadje',     k:73,  b:2.5,o:6,  m:4.5, vl:5,  že:1.2, ka:100,  ca:95,  vc:0.5, va:55,    ho:0   },
+  { n:'Lan semena 15g',             cat:'sadje',     k:81,  b:2.8,o:4,  m:6.5, vl:3.8,že:0.9, ka:115,  ca:38,  vc:0.3, va:0,     ho:0   },
+  { n:'Olivno olje 15ml',           cat:'ostalo',    k:120, b:0,  o:0,  m:14,  vl:0,  že:0,   ka:0,    ca:0,   vc:0,   va:0,     ho:0   },
+  { n:'Temna čokolada 30g',         cat:'ostalo',    k:165, b:2,  o:14, m:12,  vl:2.5,že:3.4, ka:200,  ca:20,  vc:0,   va:50,    ho:0   },
+  { n:'Med 20g',                    cat:'ostalo',    k:60,  b:0.1,o:17, m:0,   vl:0,  že:0.1, ka:20,   ca:1,   vc:0.1, va:0,     ho:0   },
 ]
 
 const MIKRO_CILJI_DB = { že:18, ka:3500, ca:1000, vc:90, va:5000, vl:30 }
@@ -41,6 +75,7 @@ const HRANA_KATEGORIJE = [
   { id:'zita',      naziv:'Žita & OH' },
   { id:'zelenjava', naziv:'Zelenjava' },
   { id:'sadje',     naziv:'Sadje & Oreščki' },
+  { id:'ostalo',    naziv:'Ostalo' },
 ]
 
 const PREF_BG   = ['#111827','#450a0a','#431407','#0f172a','#052e16','#14532d']
