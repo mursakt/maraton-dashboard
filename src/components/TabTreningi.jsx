@@ -1,5 +1,5 @@
 import React from 'react'
-import { BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
 import { TODAY } from '../constants/plan'
 import { izracunajLoad, analizirajTek } from '../utils/calculations'
 import { isTek, fmt, hrZona, hrZonaColor } from '../utils/helpers'
@@ -72,8 +72,8 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
       for (let j = 0; j < 28; j++) ctlSum += loadMap[new Date(date - j * 86400000).toISOString().slice(0, 10)] || 0
       const atl = Math.round(atlSum / 7)
       const ctl = Math.round(ctlSum / 28)
-      const razmerje = ctl > 0 ? Math.round((atl / ctl) * 100) / 100 : null
-      result.push({ datum: dateStr.slice(5), atl, ctl, razmerje })
+      const tsb = ctl - atl
+      result.push({ datum: dateStr.slice(5), atl, ctl, tsb })
     }
     return result
   }, [workouts])
@@ -274,20 +274,42 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
     })()}
 
     <div className="card" style={{marginBottom:16}}>
-      <h3>ATL / CTL trend (90 dni)</h3>
-      <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>ATL = kratkoročna utrujenost · CTL = fitnes baza · razmerje idealno 0.8–1.3</div>
-      <ResponsiveContainer width="100%" height={220}>
-        <ComposedChart data={atlCtlTrend} margin={{top:4,right:40,left:10,bottom:0}}>
+      <h3>ATL / CTL / Form — 90 dni</h3>
+      <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>
+        <span style={{color:'#f97316'}}>ATL</span> kratkoročna utrujenost &nbsp;·&nbsp;
+        <span style={{color:'#3b82f6'}}>CTL</span> fitnes baza &nbsp;·&nbsp;
+        <span style={{color:'#22c55e'}}>Form</span>/<span style={{color:'#ef4444'}}>Form</span> = CTL−ATL (zeleno = svež, rdeče = utrujen)
+      </div>
+      <ResponsiveContainer width="100%" height={240}>
+        <ComposedChart data={atlCtlTrend} margin={{top:4,right:40,left:4,bottom:0}}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
           <XAxis dataKey="datum" tick={{fontSize:9,fill:'#475569',fontFamily:'DM Mono'}} interval={Math.floor(atlCtlTrend.length/6)}/>
-          <YAxis yAxisId="load" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={30}/>
-          <YAxis yAxisId="razm" orientation="right" domain={[0,2.5]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={30}/>
-          <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:11}}/>
+          <YAxis yAxisId="load" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={28}/>
+          <YAxis yAxisId="tsb" orientation="right" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={32}/>
+          <Tooltip
+            contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:11}}
+            content={({active,payload,label}) => {
+              if (!active || !payload?.length) return null
+              const d = payload[0]?.payload
+              if (!d) return null
+              return (
+                <div style={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
+                  <div style={{color:'#64748b',marginBottom:5}}>{label}</div>
+                  <div style={{color:'#f97316'}}>ATL: {d.atl}</div>
+                  <div style={{color:'#3b82f6'}}>CTL: {d.ctl}</div>
+                  <div style={{color: d.tsb >= 0 ? '#22c55e' : '#ef4444', fontWeight:600}}>Form: {d.tsb > 0 ? '+' : ''}{d.tsb}</div>
+                </div>
+              )
+            }}
+          />
+          <ReferenceLine yAxisId="tsb" y={0} stroke="#475569" strokeDasharray="4 2" strokeWidth={1}/>
+          <Bar yAxisId="tsb" dataKey="tsb" name="Form" radius={[2,2,0,0]} maxBarSize={6}>
+            {atlCtlTrend.map((entry, i) => (
+              <Cell key={i} fill={entry.tsb >= 0 ? '#22c55e' : '#ef4444'} opacity={0.75}/>
+            ))}
+          </Bar>
           <Line yAxisId="load" type="monotone" dataKey="atl" stroke="#f97316" strokeWidth={2} dot={false} name="ATL"/>
           <Line yAxisId="load" type="monotone" dataKey="ctl" stroke="#3b82f6" strokeWidth={2} dot={false} name="CTL"/>
-          <Line yAxisId="razm" type="monotone" dataKey="razmerje" stroke="#a78bfa" strokeWidth={1.5} dot={false} strokeDasharray="4 2" name="ATL/CTL"/>
-          <ReferenceLine yAxisId="razm" y={1.3} stroke="#eab308" strokeDasharray="3 3" strokeWidth={1}/>
-          <ReferenceLine yAxisId="razm" y={0.8} stroke="#22c55e" strokeDasharray="3 3" strokeWidth={1}/>
         </ComposedChart>
       </ResponsiveContainer>
     </div>

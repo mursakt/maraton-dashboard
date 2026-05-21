@@ -5,6 +5,7 @@ import { isTek, fmt, hrZonaColor, formaColor, formaLabel, pripravljenostColor, p
 import { secToHMS } from '../utils/tempo'
 import { StatCard } from './StatCard'
 import { NaslednjihPetTreningov } from './NaslednjihPetTreningov'
+import { AlarmiPanel } from './AlarmiPanel'
 
 export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],currentTeden,formaScore,predikcija}){
   const planTeden=PLAN.find(p=>p.teden===currentTeden)
@@ -41,13 +42,6 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
   })
   const medianaDeficit = deficiti7.length > 0 ? deficiti7.reduce((s,v)=>s+v,0)/deficiti7.length : null
 
-  const alarms=[]
-  if (opozorilo) alarms.push({type:'opozorilo', msg: opozorilo})
-  if(z.hrv&&z.hrv<40)alarms.push({type:'warn',msg:'⚠️ HRV nizek ('+z.hrv+'ms) — razmisli o lažjem treningu danes'})
-  if(z.spanje_h&&z.spanje_h<6.5)alarms.push({type:'warn',msg:'⚠️ Malo spanja ('+fmt(z.spanje_h)+'h) — regeneracija trpi'})
-  if(zadnjaTeza&&planTeden&&zadnjaTeza>planTeden.ciljnaKg+1)alarms.push({type:'info',msg:`ℹ️ Teža (${fmt(zadnjaTeza)}kg) je ${fmt(zadnjaTeza-planTeden.ciljnaKg)}kg nad planom`})
-  if(formaScore&&formaScore<4)alarms.push({type:'warn',msg:`⚠️ Forma nizka (${fmt(formaScore)}/10) — premisli ali je danes trening smiseln`})
-  if(alarms.length===0)alarms.push({type:'ok',msg:'✅ Vse vrednosti v redu — nadaljuj po planu'})
 
   const kmPlan=planTeden?.km||0
   const dniDoMaratona=Math.ceil((new Date('2026-10-17')-TODAY)/(1000*60*60*24))
@@ -56,7 +50,7 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
   const diffSec = predikcija ? predikcija.casFinal - ciljSec : null
 
   return(<>
-    {alarms.map((a,i)=><div key={i} className={`alert ${a.type}`}>{a.msg}</div>)}
+    <AlarmiPanel workouts={workouts} metrike={metrike} prehrana={prehrana} />
 
     {/* Vrstica 1: Pripravljenost, Forma, KM, Teža, Dni */}
     <div className="grid5" style={{marginBottom:16}}>
