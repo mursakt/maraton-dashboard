@@ -31,6 +31,17 @@ const HRANA_DB = [
 
 const MIKRO_CILJI_DB = { že:18, ka:3500, ca:1000, vc:90, va:5000, vl:30 }
 
+const OBROKI_DEF = [
+  { id:'zajtrk',    naziv:'Zajtrk',    cas:'7:00',  ikona:'🌅', pct:0.25,
+    preferred: new Set(['Ovseni kosmiči 80g','Skyr 200g','Jajca 3 kos','Banana','Grški jogurt 200g','Avokado ½']) },
+  { id:'kosilo',    naziv:'Kosilo',    cas:'12:30', ikona:'☀️', pct:0.35,
+    preferred: new Set(['Piščančje prsi 150g','Riž kuhan 200g','Tuna v vodi 150g','Leča kuhana 200g','Brokoli 200g','Fižol kuhan 200g','Sladki krompir 200g','Korenček 150g']) },
+  { id:'prigrizek', naziv:'Prigrizek', cas:'15:30', ikona:'🍎', pct:0.10,
+    preferred: new Set(['Mandlji 30g','Banana','Avokado ½','Skyr 200g','Grški jogurt 200g']) },
+  { id:'vecerja',   naziv:'Večerja',   cas:'18:30', ikona:'🌙', pct:0.30,
+    preferred: new Set(['Losos 150g','Sardine 100g','Tofu 150g','Testenine polnozrnate 200g','Špinača 150g','Rdeča paprika 150g','Sir gouda 30g']) },
+]
+
 function PredlogObroka({ mikro, danes, cilj }) {
   const [ostanek, setOstanek] = React.useState(() => {
     if (danes) return {
@@ -41,93 +52,99 @@ function PredlogObroka({ mikro, danes, cilj }) {
     }
     return { kcal:'', belj:'', oh:'', masc:'' }
   })
-  const [predlog, setPredlog] = React.useState(null)
+  const [plan, setPlan] = React.useState(null)
 
-  const generirajPredlog = () => {
+  const generirajJedilnik = () => {
     const r = {
       kcal: Math.max(0, Number(ostanek.kcal)||0),
       belj: Math.max(0, Number(ostanek.belj)||0),
       oh:   Math.max(0, Number(ostanek.oh)||0),
       masc: Math.max(0, Number(ostanek.masc)||0),
     }
-    if (r.kcal < 50 && r.belj < 5 && r.oh < 5) { setPredlog({ tip:'done' }); return }
+    if (r.kcal < 80 && r.belj < 8) { setPlan({ tip:'done' }); return }
 
-    // Find micronutrient deficits from 7-day averages
-    const mikroDef = []
-    const mikroMap = { že: mikro.železo, ka: mikro.kalij, ca: mikro.kalcij, vc: mikro.vitamin_c, va: mikro.vitamin_a, vl: mikro.vlaknine }
-    Object.entries(MIKRO_CILJI_DB).forEach(([key, cilj]) => {
-      const val = mikroMap[key]
-      if (!val) return
-      const p = val / cilj
-      if (p < 0.75) mikroDef.push({ key, p, urgent: p < 0.55 })
-    })
-    const mikroDefLabels = { že:'železo', ka:'kalij', ca:'kalcij', vc:'vitamin C', va:'vitamin A', vl:'vlaknine' }
+    const mikroMap = { že:mikro.železo, ka:mikro.kalij, ca:mikro.kalcij, vc:mikro.vitamin_c, va:mikro.vitamin_a, vl:mikro.vlaknine }
+    const mikroDef = Object.entries(MIKRO_CILJI_DB)
+      .map(([key, ciljVal]) => { const val=mikroMap[key]; if(!val) return null; const p=val/ciljVal; return p<0.75?{key,p,urgent:p<0.55}:null })
+      .filter(Boolean)
     const holesterolVisok = mikro.holesterol && mikro.holesterol > 400
 
-    // Greedy loop — re-score after each pick based on what's still remaining
-    const meal = []
-    let rk = r.kcal, rb = r.belj, ro = r.oh, rm = r.masc
-
-    const scoreFood = (h) => {
-      let s = 0
-      if (rb > 5)  s += Math.min(1, h.b / rb) * 35
-      if (ro > 10) s += Math.min(1, h.o / ro) * 25
-      if (rm > 5)  s += Math.min(1, h.m / rm) * 10
-      const ratio = rk > 0 ? h.k / rk : 0
-      s += ratio >= 0.1 && ratio <= 0.85 ? 20 : ratio > 1.4 ? -30 : 5
-      mikroDef.forEach(md => {
-        const contrib = (h[md.key]||0) / MIKRO_CILJI_DB[md.key]
-        if (contrib > 0) s += contrib * (md.urgent ? 55 : 30)
-      })
+    const scoreFood = (h, rk, rb, ro, rm, isPreferred) => {
+      let s = isPreferred ? 14 : 0
+      if (rb > 5)  s += Math.min(1, h.b/rb) * 35
+      if (ro > 10) s += Math.min(1, h.o/ro) * 25
+      if (rm > 5)  s += Math.min(1, h.m/rm) * 10
+      const ratio = rk > 0 ? h.k/rk : 0
+      s += ratio>=0.08 && ratio<=0.9 ? 20 : ratio>1.5 ? -35 : 5
+      mikroDef.forEach(md => { const c=(h[md.key]||0)/MIKRO_CILJI_DB[md.key]; if(c>0) s+=c*(md.urgent?55:30) })
       if (holesterolVisok && h.ho > 200) s -= 30
       return s
     }
 
-    while (rk > 100 && meal.length < 5) {
-      const next = HRANA_DB
-        .filter(h => !meal.includes(h))
-        .map(h => ({ ...h, s: scoreFood(h) }))
-        .sort((a, b) => b.s - a.s)[0]
-      if (!next) break
-      if (next.k > rk * 1.6 && meal.length > 0) break
-      meal.push(next)
-      rk -= next.k; rb -= next.b; ro -= next.o; rm -= next.m
-    }
-    if (meal.length === 0) meal.push(HRANA_DB[0])
+    const aktMeals = r.kcal >= 1000 ? OBROKI_DEF
+                   : r.kcal >= 500  ? OBROKI_DEF.filter(o => o.id !== 'prigrizek')
+                                    : OBROKI_DEF.filter(o => o.id === 'kosilo' || o.id === 'prigrizek').slice(0, 2)
+    const totalPct = aktMeals.reduce((s,o) => s+o.pct, 0)
 
-    const tot = meal.reduce((acc, h) => ({
-      k:   acc.k+h.k,   b:  acc.b+h.b,   o:  acc.o+h.o,   m:   acc.m+h.m,
-      vl:  acc.vl+(h.vl||0), že: acc.že+(h.že||0), ka: acc.ka+(h.ka||0),
-      ca:  acc.ca+(h.ca||0), vc: acc.vc+(h.vc||0), va: acc.va+(h.va||0),
-    }), { k:0, b:0, o:0, m:0, vl:0, že:0, ka:0, ca:0, vc:0, va:0 })
+    const usedNames = new Set()
+    const meals = aktMeals.map(obrok => {
+      const frac = obrok.pct / totalPct
+      let rk=Math.round(r.kcal*frac), rb=Math.round(r.belj*frac), ro=Math.round(r.oh*frac), rm=Math.round(r.masc*frac)
+      const maxItems = obrok.id === 'prigrizek' ? 2 : 3
+      const hrana = []
+      while (rk > 70 && hrana.length < maxItems) {
+        const next = HRANA_DB
+          .filter(h => !usedNames.has(h.n))
+          .map(h => ({ ...h, s: scoreFood(h, rk, rb, ro, rm, obrok.preferred.has(h.n)) }))
+          .sort((a,b) => b.s-a.s)[0]
+        if (!next || (next.k > rk*2 && hrana.length > 0)) break
+        hrana.push(next)
+        usedNames.add(next.n)
+        rk-=next.k; rb-=next.b; ro-=next.o; rm-=next.m
+      }
+      const tot = hrana.reduce((a,h) => ({
+        k:a.k+h.k, b:a.b+h.b, o:a.o+h.o, m:a.m+h.m,
+        vl:a.vl+(h.vl||0), že:a.že+(h.že||0), ca:a.ca+(h.ca||0), vc:a.vc+(h.vc||0), va:a.va+(h.va||0)
+      }), {k:0,b:0,o:0,m:0,vl:0,že:0,ca:0,vc:0,va:0})
+      const bonusi = [
+        tot.že>=1   && `Fe +${Math.round(tot.že*10)/10}mg`,
+        tot.ca>=80  && `Ca +${Math.round(tot.ca)}mg`,
+        tot.vc>=15  && `C +${Math.round(tot.vc)}mg`,
+        tot.va>=300 && `A +${Math.round(tot.va)}IU`,
+        tot.vl>=3   && `vlak +${Math.round(tot.vl*10)/10}g`,
+      ].filter(Boolean)
+      return { ...obrok, hrana, tot, bonusi }
+    }).filter(m => m.hrana.length > 0)
 
-    const bonusi = []
-    if (tot.že >= 1)   bonusi.push(`železo +${Math.round(tot.že*10)/10}mg`)
-    if (tot.ka >= 200) bonusi.push(`kalij +${Math.round(tot.ka)}mg`)
-    if (tot.ca >= 80)  bonusi.push(`kalcij +${Math.round(tot.ca)}mg`)
-    if (tot.vc >= 15)  bonusi.push(`vit. C +${Math.round(tot.vc)}mg`)
-    if (tot.va >= 300) bonusi.push(`vit. A +${Math.round(tot.va)}IU`)
-    if (tot.vl >= 3)   bonusi.push(`vlaknine +${Math.round(tot.vl*10)/10}g`)
-
+    const skupaj = meals.reduce((a,m) => ({k:a.k+m.tot.k, b:a.b+m.tot.b, o:a.o+m.tot.o, m:a.m+m.tot.m}), {k:0,b:0,o:0,m:0})
+    const mikroDefLabels = { že:'železo', ka:'kalij', ca:'kalcij', vc:'vitamin C', va:'vitamin A', vl:'vlaknine' }
     const zakaj = mikroDef.length > 0
-      ? `Naslavlja tvoj primanjkljaj (7d): ${mikroDef.map(d => mikroDefLabels[d.key]).join(', ')}`
-      : 'Uravnotežen obrok za pokritje makro ciljev'
-
-    setPredlog({ tip:'meal', hrana: meal, tot, bonusi, zakaj })
+      ? `Naslavlja tvoj 7d primanjkljaj: ${mikroDef.map(d=>mikroDefLabels[d.key]).join(', ')}`
+      : 'Uravnotežen jedilnik za pokritje makro ciljev'
+    setPlan({ tip:'jedilnik', meals, skupaj, target:r, zakaj })
   }
 
   const inputStyle = { width:70, background:'#0f172a', border:'1px solid #1e2433', borderRadius:4, padding:'4px 8px', color:'#e2e8f0', fontFamily:'DM Mono', fontSize:13 }
 
+  const MakroRow = ({k,b,o,m}) => (
+    <div style={{fontFamily:'DM Mono',fontSize:11,display:'flex',gap:10,flexWrap:'wrap'}}>
+      <span><span style={{color:'#f97316'}}>{Math.round(k)}</span><span style={{color:'#475569'}}> kcal</span></span>
+      <span><span style={{color:'#22c55e'}}>{Math.round(b)}g</span><span style={{color:'#334155'}}> belj</span></span>
+      <span><span style={{color:'#3b82f6'}}>{Math.round(o)}g</span><span style={{color:'#334155'}}> OH</span></span>
+      <span><span style={{color:'#a78bfa'}}>{Math.round(m)}g</span><span style={{color:'#334155'}}> masc</span></span>
+    </div>
+  )
+
   return (
     <div className="card" style={{marginBottom:16}}>
-      <h3>Kaj naj jedem danes?</h3>
+      <h3>Celodnevni jedilnik</h3>
       <div style={{fontSize:11,color:'#475569',marginBottom:10}}>
-        Vnesi koliko ti še ostane do cilja — predlog upošteva makre in mikronutrientne trende (7d povprečje).
+        Vnesi koliko ti še manjka do cilja — sestavim jedilnik po obrokih z upoštevanjem mikronutrientnih trendov (7d povprečje).
       </div>
       {danes && <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginBottom:10}}>auto-izpolnjeno iz MFP ({TODAY_STR}) · uredi po potrebi</div>}
       <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:12,alignItems:'flex-end'}}>
         {[
-          {k:'kcal',l:'Kalorije',u:'kcal'},
+          {k:'kcal',l:'Manjka kcal',u:'kcal'},
           {k:'belj',l:'Beljakovine',u:'g'},
           {k:'oh',l:'OH',u:'g'},
           {k:'masc',l:'Maščobe',u:'g'},
@@ -135,34 +152,85 @@ function PredlogObroka({ mikro, danes, cilj }) {
           <div key={f.k}>
             <div style={{fontSize:10,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',marginBottom:4}}>{f.l}</div>
             <div style={{display:'flex',alignItems:'center',gap:4}}>
-              <input type="number" value={ostanek[f.k]} onChange={e => setOstanek(p => ({...p,[f.k]:e.target.value}))} style={inputStyle}/>
+              <input type="number" value={ostanek[f.k]} onChange={e=>setOstanek(p=>({...p,[f.k]:e.target.value}))} style={inputStyle}/>
               <span style={{fontSize:11,color:'#475569'}}>{f.u}</span>
             </div>
           </div>
         ))}
-        <button onClick={generirajPredlog} style={{background:'#1e3a5f',border:'1px solid #3b82f6',color:'#93c5fd',padding:'8px 16px',borderRadius:6,cursor:'pointer',fontSize:12,fontFamily:'DM Mono',alignSelf:'flex-end'}}>
-          Predlagaj →
+        <button onClick={generirajJedilnik} style={{background:'#1e3a5f',border:'1px solid #3b82f6',color:'#93c5fd',padding:'8px 18px',borderRadius:6,cursor:'pointer',fontSize:12,fontFamily:'DM Mono',alignSelf:'flex-end',fontWeight:600}}>
+          Sestavi jedilnik →
         </button>
       </div>
 
-      {predlog?.tip === 'done' && (
-        <div style={{padding:'10px 14px',background:'#052e16',border:'1px solid #14532d',borderRadius:8,color:'#86efac',fontSize:13}}>
+      {plan?.tip === 'done' && (
+        <div style={{padding:'12px 16px',background:'#052e16',border:'1px solid #14532d',borderRadius:8,color:'#86efac',fontSize:13}}>
           ✅ Dosegel si vse cilje za danes!
         </div>
       )}
 
-      {predlog?.tip === 'meal' && (
+      {plan?.tip === 'jedilnik' && (
         <div style={{borderTop:'1px solid #1e2433',paddingTop:14}}>
-          <div style={{fontSize:14,fontWeight:600,color:'#e2e8f0',marginBottom:6,lineHeight:1.5}}>
-            {predlog.hrana.map(h => h.n).join(' + ')}
+          {/* Meal cards */}
+          {plan.meals.map((m, i) => (
+            <div key={m.id} style={{
+              marginBottom:10, padding:'10px 14px',
+              background:'#0c1120', border:'1px solid #1e2433', borderRadius:8,
+              position:'relative',
+            }}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,marginBottom:8,flexWrap:'wrap'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:18,lineHeight:1}}>{m.ikona}</span>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:'#e2e8f0'}}>{m.naziv}</div>
+                    <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono'}}>{m.cas}</div>
+                  </div>
+                </div>
+                <MakroRow k={m.tot.k} b={m.tot.b} o={m.tot.o} m={m.tot.m}/>
+              </div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:m.bonusi.length>0?6:0}}>
+                {m.hrana.map(h => (
+                  <span key={h.n} style={{
+                    fontSize:11,padding:'3px 10px',borderRadius:12,
+                    background:'#1e2433',color:'#94a3b8',fontFamily:'DM Mono',
+                    border:'1px solid #2d3748'
+                  }}>{h.n}</span>
+                ))}
+              </div>
+              {m.bonusi.length > 0 && (
+                <div style={{fontSize:10,color:'#4ade80',fontFamily:'DM Mono'}}>✓ {m.bonusi.join(' · ')}</div>
+              )}
+            </div>
+          ))}
+
+          {/* Summary coverage */}
+          <div style={{marginTop:4,padding:'12px 14px',background:'#0f172a',border:'1px solid #1e3a5f',borderRadius:8}}>
+            <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:10}}>Pokritost ciljev</div>
+            {[
+              { label:'Kalorije', val:plan.skupaj.k, target:plan.target.kcal, color:'#f97316', unit:'kcal' },
+              { label:'Beljakovine', val:plan.skupaj.b, target:plan.target.belj, color:'#22c55e', unit:'g' },
+              { label:'OH',       val:plan.skupaj.o, target:plan.target.oh,   color:'#3b82f6', unit:'g' },
+              { label:'Maščobe',  val:plan.skupaj.m, target:plan.target.masc, color:'#a78bfa', unit:'g' },
+            ].map(row => {
+              const pct = row.target > 0 ? Math.min(100, Math.round(row.val/row.target*100)) : 0
+              const over = row.val > row.target * 1.05
+              return (
+                <div key={row.label} style={{marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,alignItems:'baseline'}}>
+                    <span style={{fontSize:11,color:'#64748b',fontFamily:'DM Mono'}}>{row.label}</span>
+                    <span style={{fontSize:11,fontFamily:'DM Mono',color: over ? '#eab308' : pct >= 85 ? '#22c55e' : row.color}}>
+                      {Math.round(row.val)} / {Math.round(row.target)} {row.unit} · {pct}%
+                    </span>
+                  </div>
+                  <div style={{height:5,background:'#1e2433',borderRadius:3}}>
+                    <div style={{height:'100%',width:`${pct}%`,background: over ? '#eab308' : row.color,borderRadius:3,opacity:0.85,transition:'width .3s'}}/>
+                  </div>
+                </div>
+              )
+            })}
+            <div style={{fontSize:11,color:'#475569',fontStyle:'italic',marginTop:8,paddingTop:8,borderTop:'1px solid #1e2433'}}>
+              💡 {plan.zakaj}
+            </div>
           </div>
-          <div style={{fontSize:12,fontFamily:'DM Mono',color:'#64748b',marginBottom:8}}>
-            ~{Math.round(predlog.tot.k)} kcal · {Math.round(predlog.tot.b)}g belj · {Math.round(predlog.tot.o)}g OH · {Math.round(predlog.tot.m)}g masc
-          </div>
-          {predlog.bonusi.length > 0 && (
-            <div style={{fontSize:11,color:'#4ade80',marginBottom:6}}>✓ {predlog.bonusi.join(' · ')}</div>
-          )}
-          <div style={{fontSize:11,color:'#64748b',fontStyle:'italic'}}>💡 {predlog.zakaj}</div>
         </div>
       )}
     </div>
