@@ -4,7 +4,6 @@ import { izracunajLoad, izracunajPripravljenost, opozoriloPredTreningom } from '
 import { isTek, fmt, formaColor, formaLabel, pripravljenostColor, pripravljenostLabel } from '../utils/helpers'
 import { secToHMS } from '../utils/tempo'
 import { StatCard } from './StatCard'
-import { NaslednjihPetTreningov } from './NaslednjihPetTreningov'
 import { AlarmiPanel } from './AlarmiPanel'
 
 export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],currentTeden,formaScore,predikcija}){
@@ -145,8 +144,5 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
       </div>
 
 
-    <div className="card" style={{marginBottom:16}}>
-      <NaslednjihPetTreningov/>
-    </div>
   </>)
 }

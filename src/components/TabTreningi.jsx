@@ -4,7 +4,6 @@ import { TODAY } from '../constants/plan'
 import { izracunajLoad, analizirajTek } from '../utils/calculations'
 import { isTek, fmt, hrZona, hrZonaColor } from '../utils/helpers'
 import { StatCard } from './StatCard'
-import { NaslednjihPetTreningov } from './NaslednjihPetTreningov'
 import { AnalizaTeka } from './AnalizaTeka'
 import { supabase } from '../supabase'
 
@@ -365,8 +364,5 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
       </ResponsiveContainer>
     </div>
 
-    <div className="card">
-      <NaslednjihPetTreningov/>
-    </div>
   </>)
 }
