@@ -1,5 +1,5 @@
 import React from 'react'
-import { BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
+import { Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
 import { TODAY } from '../constants/plan'
 import { izracunajLoad, analizirajTek } from '../utils/calculations'
 import { isTek, fmt, hrZona, hrZonaColor } from '../utils/helpers'
@@ -27,18 +27,21 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
   const avgHR=teki.filter(w=>w.povprecni_hr).reduce((s,w,_,a)=>s+w.povprecni_hr/a.length,0)
   const vo2Data=workouts.filter(w=>w.vo2max&&w.vo2max>0).slice(0,20).reverse().map(w=>({datum:w.datum?.slice(5),vo2:w.vo2max}))
 
-  // HR efikasnost (km/uro pri določenem HR)
-  const hrEfik = teki.filter(w => w.povprecni_hr >= 138 && w.povprecni_hr <= 169 && w.povprecni_tempo).slice(0, 14).reverse().map(w => {
+  // HR efikasnost po tednih
+  const efikByWeek = {}
+  teki.filter(w => w.povprecni_hr >= 138 && w.povprecni_hr <= 169 && w.povprecni_tempo).forEach(w => {
+    if (!w.datum) return
+    const d = new Date(w.datum)
+    const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay()+6)%7))
+    const key = mon.toISOString().slice(5, 10)
     const parts = (w.povprecni_tempo||'').split(':')
     const tempoSec = parts.length === 2 ? parseInt(parts[0])*60 + parseInt(parts[1]) : null
-    const normTempoSec = tempoSec ? Math.round(tempoSec + (w.povprecni_hr - 155) * 3) : null
-    return { datum: w.datum?.slice(5), efik: normTempoSec }
-  }).filter(d => d.efik)
-
-  // Load score
-  const loadScore = workouts.filter(w => w.trajanje_min && w.aerobni_te).slice(0, 14).reverse().map(w => ({
-    datum: w.datum?.slice(5),
-    load: Math.round(w.trajanje_min * (w.aerobni_te / 2))
+    const norm = tempoSec ? Math.round(tempoSec + (w.povprecni_hr - 155) * 3) : null
+    if (norm) { if (!efikByWeek[key]) efikByWeek[key] = []; efikByWeek[key].push(norm) }
+  })
+  const kombiniranGraf = kmPoTednih.map(({ teden, km }) => ({
+    teden, km,
+    efik: efikByWeek[teden] ? Math.round(efikByWeek[teden].reduce((a,b)=>a+b,0)/efikByWeek[teden].length) : null
   }))
 
   // VO2max izracun
@@ -142,20 +145,87 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
             <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{fmt(a.tek.razdalja_km)} km</span>
             <span style={{fontFamily:'DM Mono',fontSize:13,color:hrZonaColor(a.tek.povprecni_hr)}}>{a.tek.povprecni_hr} avg · {a.tek.max_hr} max bpm</span>
           </div>
-          {a.lapi.length > 0 && (
-            <div style={{marginBottom:14}}>
-              <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>HR in tempo po km</div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                {a.lapi.map((l, i) => (
-                  <div key={i} style={{padding:'4px 8px',borderRadius:4,background:'#0f172a',border:'1px solid #1e2433',fontSize:11,fontFamily:'DM Mono',minWidth:70}}>
-                    <div style={{color:'#475569'}}>{i+1}. km</div>
-                    <div style={{color:hrZonaColor(l.povprecni_hr)}}>{l.povprecni_hr||'—'} bpm</div>
-                    <div style={{color:'#64748b'}}>{l.povprecni_tempo||'—'}</div>
+          {a.lapi.length > 0 && (() => {
+            const parsePace = s => {
+              if (!s) return null
+              const parts = s.split(':').map(Number)
+              return parts[0] * 60 + (parts[1] || 0)
+            }
+            const chartData = a.lapi.map((l, i) => ({
+              km: i + 1,
+              hr: l.povprecni_hr || null,
+              pace: parsePace(l.povprecni_tempo),
+            })).filter(d => d.hr && d.pace)
+
+            // Pa:HR aerobni decoupling
+            let decouplingPct = null
+            if (chartData.length >= 4) {
+              const half = Math.floor(chartData.length / 2)
+              const ratio = arr => arr.reduce((s, d) => s + d.pace / d.hr, 0) / arr.length
+              const r1 = ratio(chartData.slice(0, half))
+              const r2 = ratio(chartData.slice(half))
+              decouplingPct = Math.round((r2 - r1) / r1 * 1000) / 10
+            }
+
+            const paceMin = chartData.length ? Math.min(...chartData.map(d=>d.pace)) - 10 : 0
+            const paceMax = chartData.length ? Math.max(...chartData.map(d=>d.pace)) + 10 : 400
+
+            return (
+              <div style={{marginBottom:14}}>
+                <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:6,flexWrap:'wrap'}}>
+                  <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>HR &amp; Pace po km</div>
+                  {decouplingPct !== null && (
+                    <div style={{fontFamily:'DM Mono',fontSize:12}}>
+                      <span style={{color:'#475569'}}>Pa:HR decoupling: </span>
+                      <span style={{fontWeight:600,color: Math.abs(decouplingPct) < 5 ? '#22c55e' : decouplingPct < 8 ? '#eab308' : '#ef4444'}}>
+                        {decouplingPct > 0 ? '+' : ''}{decouplingPct}%
+                      </span>
+                      <span style={{color:'#475569',marginLeft:6}}>
+                        {Math.abs(decouplingPct) < 5 ? '✓ aerobno stabilno' : decouplingPct < 8 ? '⚠ blag drift' : '⚠ cardiac drift'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {chartData.length >= 2 ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <ComposedChart data={chartData} margin={{top:4,right:8,left:4,bottom:0}}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+                      <XAxis dataKey="km" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} label={{value:'km',position:'insideBottomRight',offset:-2,fontSize:10,fill:'#475569'}}/>
+                      <YAxis yAxisId="hr" domain={['auto','auto']} tick={{fontSize:10,fill:'#f97316',fontFamily:'DM Mono'}} width={32}/>
+                      <YAxis yAxisId="pace" orientation="right" reversed={true} domain={[paceMin, paceMax]} tick={{fontSize:10,fill:'#3b82f6',fontFamily:'DM Mono'}} width={38} tickFormatter={v => { const m=Math.floor(v/60); const s=String(v%60).padStart(2,'0'); return `${m}:${s}` }}/>
+                      <Tooltip
+                        content={({active,payload,label}) => {
+                          if (!active || !payload?.length) return null
+                          const d = payload[0]?.payload
+                          if (!d) return null
+                          const pm = Math.floor(d.pace/60), ps = String(d.pace%60).padStart(2,'0')
+                          return (
+                            <div style={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
+                              <div style={{color:'#64748b',marginBottom:4}}>{label}. km</div>
+                              <div style={{color:'#f97316'}}>HR: {d.hr} bpm</div>
+                              <div style={{color:'#3b82f6'}}>Pace: {pm}:{ps} /km</div>
+                            </div>
+                          )
+                        }}
+                      />
+                      <Line yAxisId="hr" type="monotone" dataKey="hr" stroke="#f97316" strokeWidth={2} dot={{r:3,fill:'#f97316'}} name="HR"/>
+                      <Line yAxisId="pace" type="monotone" dataKey="pace" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}} name="Pace"/>
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                    {a.lapi.map((l, i) => (
+                      <div key={i} style={{padding:'4px 8px',borderRadius:4,background:'#0f172a',border:'1px solid #1e2433',fontSize:11,fontFamily:'DM Mono',minWidth:70}}>
+                        <div style={{color:'#475569'}}>{i+1}. km</div>
+                        <div style={{color:hrZonaColor(l.povprecni_hr)}}>{l.povprecni_hr||'—'} bpm</div>
+                        <div style={{color:'#64748b'}}>{l.povprecni_tempo||'—'}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          )}
+            )
+          })()}
           <div style={{marginBottom:14}}>
             <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Subjektivna ocena teka</div>
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
@@ -195,57 +265,38 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
     })()}
 
     <div className="card" style={{marginBottom:16}}>
-      <h3>Km po tednih (samo teki)</h3>
-      {kmPoTednih.length>0?(
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={kmPoTednih} margin={{top:4,right:0,left:-20,bottom:0}}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-            <XAxis dataKey="teden" tick={{fontSize:11,fill:'#475569',fontFamily:'DM Mono'}}/>
-            <YAxis tick={{fontSize:11,fill:'#475569',fontFamily:'DM Mono'}}/>
-            <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
-            <Bar dataKey="km" fill="#3b82f6" radius={[4,4,0,0]}/>
-          </BarChart>
-        </ResponsiveContainer>
-      ):<div className="empty">Ni dovolj podatkov</div>}
-    </div>
-    {hrEfik.length > 1 && (
-        <div className="card" style={{marginBottom:16}}>
-          <h3>HR efikasnost — tempo pri HR 155 bpm</h3>
-          <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>Nižje = boljša aerobna efikasnost. Normaliziran na HR 155 bpm.</div>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={hrEfik} margin={{top:4,right:16,left:10,bottom:0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-              <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} interval="preserveStartEnd"/>
-              <YAxis
-                reversed={true}
-                domain={['auto','auto']}
-                tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}
-                tickFormatter={v => { const m=Math.floor(v/60); const s=String(v%60).padStart(2,'0'); return `${m}:${s}` }}
-                width={40}
-              />
-              <Tooltip
-                contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}
-                formatter={v=>{const m=Math.floor(v/60);const s=String(v%60).padStart(2,'0');return[`${m}:${s}/km`,'Tempo pri HR 155']}}
-              />
-              <Line type="monotone" dataKey="efik" stroke="#f59e0b" strokeWidth={2} dot={{r:4,fill:'#f59e0b'}}/>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    {loadScore.length > 1 && (
-      <div className="card" style={{marginBottom:16}}>
-        <h3>Tedenski load score</h3>
-        <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={loadScore} margin={{top:4,right:0,left:-20,bottom:0}}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-            <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-            <YAxis domain={[30, 100]} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
-            <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
-            <Bar dataKey="load" fill="#ef4444" radius={[3,3,0,0]}/>
-          </BarChart>
-        </ResponsiveContainer>
+      <h3>Km po tednih &amp; HR efikasnost</h3>
+      <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>
+        <span style={{color:'#3b82f6',fontWeight:600}}>■</span> km (levo) &nbsp;·&nbsp;
+        <span style={{color:'#f59e0b',fontWeight:600}}>—</span> tempo pri HR 155 bpm (desno, nižje = boljša efikasnost)
       </div>
-    )}
+      {kombiniranGraf.length > 0 ? (
+        <ResponsiveContainer width="100%" height={210}>
+          <ComposedChart data={kombiniranGraf} margin={{top:4,right:8,left:4,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+            <XAxis dataKey="teden" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
+            <YAxis yAxisId="km" tick={{fontSize:10,fill:'#3b82f6',fontFamily:'DM Mono'}} width={28}/>
+            <YAxis yAxisId="efik" orientation="right" reversed={true} domain={['auto','auto']} tick={{fontSize:10,fill:'#f59e0b',fontFamily:'DM Mono'}} width={40} tickFormatter={v => { const m=Math.floor(v/60); const s=String(v%60).padStart(2,'0'); return `${m}:${s}` }}/>
+            <Tooltip
+              content={({active,payload,label}) => {
+                if (!active || !payload?.length) return null
+                const d = payload[0]?.payload
+                if (!d) return null
+                return (
+                  <div style={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
+                    <div style={{color:'#64748b',marginBottom:4}}>teden {label}</div>
+                    <div style={{color:'#3b82f6'}}>Km: {d.km}</div>
+                    {d.efik && <div style={{color:'#f59e0b'}}>Efik: {Math.floor(d.efik/60)}:{String(d.efik%60).padStart(2,'0')}/km pri HR 155</div>}
+                  </div>
+                )
+              }}
+            />
+            <Bar yAxisId="km" dataKey="km" fill="#3b82f644" stroke="#3b82f6" strokeWidth={1} radius={[4,4,0,0]}/>
+            <Line yAxisId="efik" type="monotone" dataKey="efik" stroke="#f59e0b" strokeWidth={2} dot={{r:4,fill:'#f59e0b'}} connectNulls={false}/>
+          </ComposedChart>
+        </ResponsiveContainer>
+      ) : <div className="empty">Ni dovolj podatkov</div>}
+    </div>
     {/* Load kartice */}
     {(() => {
       const { atl, ctl, razmerje, razmerjeOpis, razmerjeColor } = izracunajLoad(workouts)
@@ -281,7 +332,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
         <span style={{color:'#22c55e'}}>Form</span>/<span style={{color:'#ef4444'}}>Form</span> = CTL−ATL (zeleno = svež, rdeče = utrujen)
       </div>
       <ResponsiveContainer width="100%" height={240}>
-        <ComposedChart data={atlCtlTrend} margin={{top:4,right:40,left:4,bottom:0}}>
+        <ComposedChart data={atlCtlTrend} margin={{top:4,right:8,left:4,bottom:0}}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
           <XAxis dataKey="datum" tick={{fontSize:9,fill:'#475569',fontFamily:'DM Mono'}} interval={Math.floor(atlCtlTrend.length/6)}/>
           <YAxis yAxisId="load" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={28}/>

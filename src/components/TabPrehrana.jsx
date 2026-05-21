@@ -222,8 +222,9 @@ function PredlogObroka({ mikro, danes, cilj, prioritete, setPrioriteta, resetAll
       if (rm > 5)  s += Math.min(1, h.m/rm) * 10
       const ratio = rk > 0 ? h.k/rk : 0
       s += ratio>=0.08 && ratio<=0.9 ? 20 : ratio>1.5 ? -35 : 5
-      mikroDef.forEach(md => { const c=(h[md.key]||0)/MIKRO_CILJI_DB[md.key]; if(c>0) s+=c*(md.urgent?55:30) })
+      mikroDef.forEach(md => { const c=Math.min(1, (h[md.key]||0)/MIKRO_CILJI_DB[md.key]); if(c>0) s+=c*(md.urgent?40:22) })
       if (holesterolVisok && h.ho > 200) s -= 30
+      s += Math.random() * 10 - 5
       return s
     }
 
