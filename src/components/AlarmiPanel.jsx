@@ -172,9 +172,8 @@ export function AlarmiPanel({ workouts, metrike, prehrana }) {
     alarmi.push({ nivo:'opozorilo', kat:'Forma', naziv:`VO2max pada: ${vo2Zdaj.toFixed(1)} → ${vo2Pred4.toFixed(1)} ml/kg/min (4 tedni)`, fix:'Preveri ali je dovolj intenzivnih treningov v programu.' })
 
   // ── SORT & RENDER ─────────────────────────────────────────
-  alarmi.sort((a,b) => a.nivo === b.nivo ? 0 : a.nivo === 'kritično' ? -1 : 1)
-  const kritCount = alarmi.filter(a => a.nivo === 'kritično').length
-  const opoCount  = alarmi.filter(a => a.nivo === 'opozorilo').length
+  const kritični  = alarmi.filter(a => a.nivo === 'kritično')
+  const opozorila = alarmi.filter(a => a.nivo === 'opozorilo')
 
   if (alarmi.length === 0) return (
     <div style={{padding:'12px 16px',background:'#052e16',border:'1px solid #14532d',borderRadius:8,marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
@@ -184,28 +183,58 @@ export function AlarmiPanel({ workouts, metrike, prehrana }) {
   )
 
   return (
-    <div className="card" style={{marginBottom:16}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}}>
-        <h3 style={{margin:0}}>Alarmi & Opozorila</h3>
-        <div style={{display:'flex',gap:6,fontFamily:'DM Mono',fontSize:11}}>
-          {kritCount > 0 && <span style={{color:'#fca5a5',background:'#2d0505',padding:'2px 9px',borderRadius:4,border:'1px solid #7f1d1d'}}>🔴 {kritCount} kritično</span>}
-          {opoCount  > 0 && <span style={{color:'#fde68a',background:'#1a1200',padding:'2px 9px',borderRadius:4,border:'1px solid #78350f'}}>🟡 {opoCount} opozorilo</span>}
+    <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:6}}>
+      {kritični.length > 0 && <AlarmGroup nivo="kritično" alarmi={kritični} />}
+      {opozorila.length > 0 && <AlarmGroup nivo="opozorilo" alarmi={opozorila} />}
+    </div>
+  )
+}
+
+function AlarmGroup({ nivo, alarmi }) {
+  const [open, setOpen] = React.useState(nivo === 'kritično')
+  const isKrit = nivo === 'kritično'
+  const barva   = isKrit ? '#ef4444' : '#eab308'
+  const barvaTxt= isKrit ? '#f87171' : '#fbbf24'
+  const barvaBg = isKrit ? '#2d0505' : '#1a1200'
+  const barvaBrd= isKrit ? '#7f1d1d' : '#78350f'
+
+  return (
+    <div style={{border:`1px solid ${barvaBrd}`,borderRadius:8,overflow:'hidden'}}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width:'100%', display:'flex', justifyContent:'space-between', alignItems:'center',
+          padding:'10px 14px', background: barvaBg, border:'none', cursor:'pointer',
+        }}
+      >
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:13}}>{isKrit ? '🔴' : '🟡'}</span>
+          <span style={{fontSize:12,fontWeight:700,color:barvaTxt,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'.5px'}}>
+            {isKrit ? 'Kritično' : 'Opozorila'}
+          </span>
+          <span style={{fontSize:11,color:barvaTxt,fontFamily:'DM Mono',opacity:.7}}>{alarmi.length}</span>
         </div>
-      </div>
-      {alarmi.map((a, i) => (
-        <div key={i} style={{
-          borderLeft:`3px solid ${a.nivo==='kritično'?'#ef4444':'#eab308'}`,
-          paddingLeft:12, marginBottom:10,
-          paddingBottom: i < alarmi.length-1 ? 10 : 0,
-          borderBottom:  i < alarmi.length-1 ? '1px solid #0a0f1a' : 'none',
-        }}>
-          <div style={{display:'flex',alignItems:'baseline',gap:7,marginBottom:3,flexWrap:'wrap'}}>
-            <span style={{fontSize:10,fontFamily:'DM Mono',color:'#475569',background:'#0f172a',padding:'1px 6px',borderRadius:3,flexShrink:0}}>{a.kat}</span>
-            <span style={{fontSize:12,fontWeight:600,color:a.nivo==='kritično'?'#f87171':'#fbbf24'}}>{a.naziv}</span>
-          </div>
-          {a.fix && <div style={{fontSize:11,color:'#64748b',fontFamily:'DM Mono'}}>➜ {a.fix}</div>}
+        <span style={{fontSize:10,color:barvaTxt,opacity:.6}}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{background:'#070d1a',padding:'10px 14px',borderTop:`1px solid ${barvaBrd}`}}>
+          {alarmi.map((a, i) => (
+            <div key={i} style={{
+              borderLeft:`3px solid ${barva}`,
+              paddingLeft:12, marginBottom: i < alarmi.length-1 ? 10 : 0,
+              paddingBottom: i < alarmi.length-1 ? 10 : 0,
+              borderBottom: i < alarmi.length-1 ? '1px solid #0a0f1a' : 'none',
+            }}>
+              <div style={{display:'flex',alignItems:'baseline',gap:7,marginBottom:3,flexWrap:'wrap'}}>
+                <span style={{fontSize:10,fontFamily:'DM Mono',color:'#475569',background:'#0f172a',padding:'1px 6px',borderRadius:3,flexShrink:0}}>{a.kat}</span>
+                <span style={{fontSize:12,fontWeight:600,color:barvaTxt}}>{a.naziv}</span>
+              </div>
+              {a.fix && <div style={{fontSize:11,color:'#64748b',fontFamily:'DM Mono'}}>➜ {a.fix}</div>}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   )
 }
