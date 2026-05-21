@@ -1,7 +1,7 @@
 import React from 'react'
 import { PLAN, TODAY, TODAY_STR, YESTERDAY_STR } from '../constants/plan'
 import { izracunajLoad, izracunajPripravljenost, opozoriloPredTreningom } from '../utils/calculations'
-import { isTek, fmt, hrZonaColor, formaColor, formaLabel, pripravljenostColor, pripravljenostLabel } from '../utils/helpers'
+import { isTek, fmt, formaColor, formaLabel, pripravljenostColor, pripravljenostLabel } from '../utils/helpers'
 import { secToHMS } from '../utils/tempo'
 import { StatCard } from './StatCard'
 import { NaslednjihPetTreningov } from './NaslednjihPetTreningov'
@@ -146,11 +146,6 @@ export function TabPregled({workouts,metrike,prehrana,laps,prehranaCilji=[],curr
 
 
     <div className="card" style={{marginBottom:16}}>
-      <h3>Zadnji 5 treningov</h3>
-      <div className="workout-list">
-        {workouts.slice(0,5).map((w,i)=>(<div key={i} className="workout-item"><span className="date">{w.datum?.slice(5)}</span><span className="type">{w.naziv||w.tip_treninga||'—'}</span><span className="detail">{fmt(w.razdalja_km)} km · {w.povprecni_tempo||'—'}/km · {fmt(w.trajanje_min,0)} min</span><span className="hr-badge" style={{background:hrZonaColor(w.povprecni_hr)+'22',color:hrZonaColor(w.povprecni_hr)}}>{w.povprecni_hr?`${w.povprecni_hr} bpm`:'—'}</span></div>))}
-        {workouts.length===0&&<div className="empty">Ni podatkov</div>}
-      </div>
       <NaslednjihPetTreningov/>
     </div>
   </>)

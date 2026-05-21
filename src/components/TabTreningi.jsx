@@ -366,11 +366,6 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
     </div>
 
     <div className="card">
-      <h3>Vsi treningi ({workouts.length})</h3>
-      <div className="workout-list" style={{maxHeight:420,overflowY:'auto'}}>
-        {workouts.map((w,i)=>(<div key={i} className="workout-item"><span className="date">{w.datum?.slice(5)}</span><span className="type" style={{fontSize:11,minWidth:80}}>{w.naziv||w.tip_treninga||'—'}</span><span className="detail">{w.razdalja_km>0?`${fmt(w.razdalja_km)} km · `:''}{w.povprecni_tempo?`${w.povprecni_tempo}/km · `:''}{fmt(w.trajanje_min,0)} min</span>{w.vo2max>0&&<span style={{fontSize:11,color:'#a78bfa',fontFamily:'DM Mono'}}>VO2: {fmt(w.vo2max,1)}</span>}<span className="hr-badge" style={{background:hrZonaColor(w.povprecni_hr)+'22',color:hrZonaColor(w.povprecni_hr)}}>{w.povprecni_hr||'—'} bpm</span>{isTek(w)&&getOcena(w)&&<span style={{fontSize:10,padding:'2px 7px',borderRadius:3,background:OCENE.find(o=>o.key===getOcena(w))?.color+'22'||'#1e2433',color:OCENE.find(o=>o.key===getOcena(w))?.color||'#94a3b8',fontFamily:'DM Mono'}}>{OCENE.find(o=>o.key===getOcena(w))?.label||getOcena(w)}</span>}</div>))}
-        {workouts.length===0&&<div className="empty">Ni podatkov</div>}
-      </div>
       <NaslednjihPetTreningov/>
     </div>
   </>)
