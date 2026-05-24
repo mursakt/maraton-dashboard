@@ -1,11 +1,53 @@
 import React from 'react'
 import { Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
-import { TODAY } from '../constants/plan'
+import { TODAY, PLAN_TRENINGI } from '../constants/plan'
 import { izracunajLoad, analizirajTek } from '../utils/calculations'
 import { runRuleEngine } from '../utils/ruleEngine'
 import { isTek, fmt, hrZona, hrZonaColor } from '../utils/helpers'
 import { StatCard } from './StatCard'
 import { supabase } from '../supabase'
+
+function calcDecoupling(lapList) {
+  const data = lapList
+    .filter(l => l.povprecni_hr && l.povprecni_tempo)
+    .map(l => {
+      const p = l.povprecni_tempo.split(':').map(Number)
+      const pace = p.length === 2 ? p[0] * 60 + (p[1] || 0) : null
+      return pace ? { hr: l.povprecni_hr, pace } : null
+    })
+    .filter(Boolean)
+  if (data.length < 4) return null
+  const half = Math.floor(data.length / 2)
+  const ratio = arr => arr.reduce((s, d) => s + d.pace / d.hr, 0) / arr.length
+  return Math.round((ratio(data.slice(half)) - ratio(data.slice(0, half))) / ratio(data.slice(0, half)) * 1000) / 10
+}
+
+function detectTipLocal(workout) {
+  const pe = PLAN_TRENINGI.find(p => p.datum === workout.datum || p.naziv === workout.naziv)
+  const o = (pe?.opis || '').toLowerCase()
+  if (o.includes('maraton')) return 'race'
+  if (o.includes('race pace')) return 'racepace'
+  if (o.includes('interval')) return 'intervals'
+  if (o.includes('hribč')) return 'hills'
+  if (o.includes('dolgi tek')) return 'long'
+  if (workout.aerobni_te >= 4 || workout.povprecni_hr > 165) return 'intervals'
+  if (workout.razdalja_km >= 12) return 'long'
+  return 'easy'
+}
+
+function decouplingInterpretacija(pct) {
+  if (pct < 0)   return 'Negativni decoupling — HR je padal ali tempo naraščal. Preveri GPS podatke ali profil trase.'
+  if (pct < 3)   return 'Odlično aerobno — srce je ostalo stabilno skozi ves tek. Aerobna baza je na visoki ravni.'
+  if (pct < 5)   return 'Dobra aerobna stabilnost — normalna variacija, srce se ni bistveno utrudilo.'
+  if (pct < 8)   return 'Blag cardiac drift — rahla utrujenost srca, pogosta pri daljših tekih. Morda malo nizek glikogen ob koncu.'
+  if (pct < 15)  return 'Zmeren drift — srce se je utrudilo. Možni vzroki: nizek glikogen dan prej, dehidracija ali previsok tempo.'
+  return 'Velik drift — glikogen je bil zelo nizek ali napor previsok. Preveri prehrano dan prej in hidracijo med tekom.'
+}
+
+const TIP_LABEL_SHORT = {
+  easy: 'lahki teki', long: 'dolgi teki', intervals: 'intervali',
+  hills: 'hribčki', racepace: 'RPR', race: 'tekme',
+}
 
 const SEV_ICON = { alarm: '🔴', warning: '🟡', info: '🔵' }
 const SEV_BORDER = { alarm: '#ef444418', warning: '#eab30818', info: '#3b82f618' }
@@ -143,14 +185,32 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
             })).filter(d => d.hr && d.pace)
 
             // Pa:HR aerobni decoupling
-            let decouplingPct = null
-            if (chartData.length >= 4) {
-              const half = Math.floor(chartData.length / 2)
-              const ratio = arr => arr.reduce((s, d) => s + d.pace / d.hr, 0) / arr.length
-              const r1 = ratio(chartData.slice(0, half))
-              const r2 = ratio(chartData.slice(half))
-              decouplingPct = Math.round((r2 - r1) / r1 * 1000) / 10
-            }
+            const decouplingPct = calcDecoupling(chartData.map(d => ({
+              povprecni_hr: d.hr,
+              povprecni_tempo: `${Math.floor(d.pace/60)}:${String(d.pace%60).padStart(2,'0')}`,
+            })))
+
+            // Primerjava z istim tipom tekov
+            const tipTeka = detectTipLocal(a.tek)
+            const istiTipTeki = workouts
+              .filter(w => isTek(w) && w.datum < a.tek.datum && w.razdalja_km > 0)
+              .sort((x, y) => y.datum.localeCompare(x.datum))
+              .filter(w => detectTipLocal(w) === tipTeka)
+              .slice(0, 8)
+            const prevDecouplings = istiTipTeki
+              .map(w => calcDecoupling(
+                laps.filter(l => l.garmin_activity_id === w.garmin_activity_id)
+                    .sort((x, y) => x.lap_number - y.lap_number)
+              ))
+              .filter(d => d !== null)
+            const decouplingAvgPrev = prevDecouplings.length >= 2
+              ? Math.round(prevDecouplings.reduce((s, d) => s + d, 0) / prevDecouplings.length * 10) / 10
+              : null
+
+            const dcColor = decouplingPct === null ? '#6b7280'
+              : Math.abs(decouplingPct) < 5 ? '#22c55e'
+              : decouplingPct < 8 ? '#eab308' : '#ef4444'
+            const dcLabel = decouplingPct === null ? '' : Math.abs(decouplingPct) < 5 ? '✓ aerobno stabilno' : decouplingPct < 8 ? '⚠ blag drift' : '⚠ cardiac drift'
 
             const paceMin = chartData.length ? Math.min(...chartData.map(d=>d.pace)) - 10 : 0
             const paceMax = chartData.length ? Math.max(...chartData.map(d=>d.pace)) + 10 : 400
@@ -160,17 +220,36 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                 <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:6,flexWrap:'wrap'}}>
                   <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>HR &amp; Pace po km</div>
                   {decouplingPct !== null && (
-                    <div style={{fontFamily:'DM Mono',fontSize:12}}>
-                      <span style={{color:'#475569'}}>Pa:HR decoupling: </span>
-                      <span style={{fontWeight:600,color: Math.abs(decouplingPct) < 5 ? '#22c55e' : decouplingPct < 8 ? '#eab308' : '#ef4444'}}>
+                    <div style={{fontFamily:'DM Mono',fontSize:12,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                      <span style={{color:'#475569'}}>Pa:HR decoupling:</span>
+                      <span style={{fontWeight:700,color:dcColor,fontSize:13}}>
                         {decouplingPct > 0 ? '+' : ''}{decouplingPct}%
                       </span>
-                      <span style={{color:'#475569',marginLeft:6}}>
-                        {Math.abs(decouplingPct) < 5 ? '✓ aerobno stabilno' : decouplingPct < 8 ? '⚠ blag drift' : '⚠ cardiac drift'}
-                      </span>
+                      <span style={{color:'#475569'}}>{dcLabel}</span>
+                      {decouplingAvgPrev !== null && (() => {
+                        const delta = decouplingPct - decouplingAvgPrev
+                        const boljse = delta < -1
+                        const slabse = delta > 1
+                        return (
+                          <span style={{fontSize:11,color:'#334155'}}>
+                            vs {TIP_LABEL_SHORT[tipTeka]} ({prevDecouplings.length}×):
+                            <span style={{color: boljse ? '#22c55e' : slabse ? '#f97316' : '#64748b', fontWeight:600, marginLeft:4}}>
+                              {decouplingAvgPrev > 0 ? '+' : ''}{decouplingAvgPrev}%
+                            </span>
+                            <span style={{color: boljse ? '#22c55e' : slabse ? '#f97316' : '#64748b', marginLeft:4}}>
+                              {boljse ? '↑ boljše' : slabse ? '↓ slabše' : '≈ podobno'}
+                            </span>
+                          </span>
+                        )
+                      })()}
                     </div>
                   )}
                 </div>
+                {decouplingPct !== null && (
+                  <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',marginBottom:8,paddingLeft:2,lineHeight:1.5}}>
+                    {decouplingInterpretacija(decouplingPct)}
+                  </div>
+                )}
                 {chartData.length >= 2 ? (
                   <ResponsiveContainer width="100%" height={200}>
                     <ComposedChart data={chartData} margin={{top:4,right:8,left:4,bottom:0}}>
