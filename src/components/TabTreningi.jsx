@@ -2,9 +2,22 @@ import React from 'react'
 import { Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
 import { TODAY } from '../constants/plan'
 import { izracunajLoad, analizirajTek } from '../utils/calculations'
+import { runRuleEngine } from '../utils/ruleEngine'
 import { isTek, fmt, hrZona, hrZonaColor } from '../utils/helpers'
 import { StatCard } from './StatCard'
 import { supabase } from '../supabase'
+
+const SEV_ICON = { alarm: '🔴', warning: '🟡', info: '🔵' }
+const SEV_BORDER = { alarm: '#ef444418', warning: '#eab30818', info: '#3b82f618' }
+const SEV_COLOR = { alarm: '#f87171', warning: '#fbbf24', info: '#60a5fa' }
+const CAT_COLOR = {
+  tek: '#a78bfa', prehrana: '#34d399', regeneracija: '#38bdf8',
+  load: '#fb923c', primerjava: '#94a3b8',
+}
+const CAT_LABEL = {
+  tek: 'Tek', prehrana: 'Prehrana', regeneracija: 'Regeneracija',
+  load: 'Obremenitev', primerjava: 'Primerjava',
+}
 
 const OCENE = [
   { key: 'lahko',          label: 'Lahko',          color: '#22c55e' },
@@ -79,37 +92,11 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
     return result
   }, [workouts])
 
-  const [aiAnaliza, setAiAnaliza] = React.useState(null)
-  const [aiLoading, setAiLoading] = React.useState(false)
-  const [aiError, setAiError] = React.useState(null)
-
-  const fetchAiAnaliza = async (zadnjiTek) => {
-    setAiLoading(true)
-    setAiError(null)
-    setAiAnaliza(null)
-    try {
-      const vcerajStr = new Date(new Date(zadnjiTek.datum) - 86400000).toISOString().slice(0, 10)
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          tek: zadnjiTek,
-          lapi: laps.filter(l => l.datum === zadnjiTek.datum),
-          metrikeVceraj: metrike.find(m => m.datum === vcerajStr) || {},
-          prehranaVceraj: prehrana.find(p => p.datum === vcerajStr) || {},
-          zadnjih10Treningov: workouts.slice(0, 10),
-          subjektivnaOcena: getOcena(zadnjiTek),
-        })
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      setAiAnaliza(data.analiza)
-    } catch (e) {
-      setAiError(e.message)
-    } finally {
-      setAiLoading(false)
-    }
-  }
+  const zadnjiTekZaAnalizo = workouts.find(w => isTek(w))
+  const findings = React.useMemo(() =>
+    runRuleEngine({ zadnjiTek: zadnjiTekZaAnalizo, lapsTeka: laps, metrike, prehrana, workouts }),
+    [zadnjiTekZaAnalizo?.garmin_activity_id, laps.length, metrike.length, prehrana.length]
+  )
 
   return(<>
     <div className="grid4">
@@ -236,28 +223,27 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               })}
             </div>
           </div>
-          <div style={{borderTop:'1px solid #1e2433',paddingTop:14}}>
-            <button
-              onClick={() => fetchAiAnaliza(zadnjiTek)}
-              disabled={aiLoading}
-              style={{padding:'7px 18px',borderRadius:6,border:'1px solid #6366f1',background:aiLoading?'#1e2433':'#6366f122',color:aiLoading?'#475569':'#a5b4fc',fontSize:13,cursor:aiLoading?'default':'pointer',fontFamily:'DM Mono',fontWeight:500}}
-            >
-              {aiLoading ? '⏳ Analiziram...' : '🤖 Analiziraj z AI'}
-            </button>
-            {aiError && <div style={{marginTop:10,fontSize:12,color:'#f87171',fontFamily:'DM Mono'}}>{aiError}</div>}
-            {aiAnaliza && (
-              <div style={{marginTop:12}}>
-                {aiAnaliza.split('\n').map((line, i) => {
-                  const isHeader = line.startsWith('**')
-                  return (
-                    <div key={i} style={{fontSize:isHeader?11:13,fontWeight:isHeader?600:400,color:isHeader?'#e2e8f0':'#94a3b8',marginTop:isHeader?12:2,lineHeight:1.65}}>
-                      {line.replace(/\*\*/g,'')}
-                    </div>
-                  )
-                })}
+          {findings.length > 0 && (
+            <div style={{borderTop:'1px solid #1e2433',paddingTop:14}}>
+              <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:10}}>
+                Analiza · {findings.filter(f=>f.severity==='alarm').length} alarm · {findings.filter(f=>f.severity==='warning').length} opozorilo · {findings.filter(f=>f.severity==='info').length} info
               </div>
-            )}
-          </div>
+              {['alarm','warning','info'].flatMap(sev => findings.filter(f => f.severity === sev)).map((f, i) => (
+                <div key={i} style={{display:'flex',gap:10,padding:'8px 12px',borderRadius:6,marginBottom:5,background:'#080f1e',border:`1px solid ${SEV_BORDER[f.severity]}`,alignItems:'flex-start'}}>
+                  <span style={{fontSize:13,marginTop:1,flexShrink:0}}>{SEV_ICON[f.severity]}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:'flex',gap:7,alignItems:'center',marginBottom:3,flexWrap:'wrap'}}>
+                      <span style={{fontSize:10,fontFamily:'DM Mono',color:CAT_COLOR[f.category],background:CAT_COLOR[f.category]+'22',padding:'1px 7px',borderRadius:3,flexShrink:0}}>
+                        {CAT_LABEL[f.category]}
+                      </span>
+                      <span style={{fontSize:12,color:SEV_COLOR[f.severity],fontWeight:600,lineHeight:1.4}}>{f.title}</span>
+                    </div>
+                    <div style={{fontSize:12,color:'#64748b',lineHeight:1.5}}>{f.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )
     })()}

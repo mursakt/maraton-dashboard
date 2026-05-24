@@ -10,8 +10,6 @@ import { TabPrehrana } from './components/TabPrehrana'
 import { TabTreningi } from './components/TabTreningi'
 import { TabTelo } from './components/TabTelo'
 import { TabPlan } from './components/TabPlan'
-import { AnalizaTeka } from './components/AnalizaTeka'
-
 
 export default function App() {
   const [tab, setTab] = useState('pregled')
