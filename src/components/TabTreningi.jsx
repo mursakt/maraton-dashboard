@@ -452,5 +452,146 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
       </ResponsiveContainer>
     </div>
 
+    {/* ATL/CTL Interpretacija */}
+    {atlCtlTrend.length >= 30 && (() => {
+      const cur   = atlCtlTrend[atlCtlTrend.length - 1]
+      const ago7  = atlCtlTrend[atlCtlTrend.length - 8]  || atlCtlTrend[0]
+      const ago14 = atlCtlTrend[atlCtlTrend.length - 15] || atlCtlTrend[0]
+
+      const ctlD14 = cur.ctl - ago14.ctl
+      const atlD7  = cur.atl - ago7.atl
+      const tsbD7  = cur.tsb - ago7.tsb
+
+      const last30      = atlCtlTrend.slice(-30)
+      const daysNegTsb  = last30.filter(d => d.tsb < 0).length
+      const peakAtl30   = Math.max(...last30.map(d => d.atl))
+
+      const tsbColor = cur.tsb > 5 ? '#22c55e' : cur.tsb > -10 ? '#94a3b8' : cur.tsb > -30 ? '#eab308' : cur.tsb > -50 ? '#f97316' : '#ef4444'
+      const atlColor = cur.atl > 150 ? '#ef4444' : cur.atl > 100 ? '#f97316' : cur.atl > 50 ? '#eab308' : '#22c55e'
+
+      const atlOpis = cur.atl < 50  ? 'Nizka akutna utrujenost — malo treniral/a v zadnjem tednu.'
+        : cur.atl < 100 ? 'Zmerna akutna utrujenost — normalen teden.'
+        : cur.atl < 150 ? 'Visoka akutna utrujenost — intenziven teden.'
+        : cur.atl < 200 ? 'Zelo visoka utrujenost — pazi na regeneracijo.'
+        : 'Kritična obremenitev — počitek nujen.'
+
+      const ctlOpis = cur.ctl < 40  ? 'Nizka fitnes baza — zgodnja faza ali po pavzi.'
+        : cur.ctl < 70  ? 'Zmerna baza — redni tekač.'
+        : cur.ctl < 100 ? 'Dobra fitnes baza — resni maratonski trening.'
+        : 'Visoka fitnes baza — vrhunski nivo.'
+
+      const tsbOpis = cur.tsb > 25   ? 'Preveč svež — verjetno premalo treninga v zadnjem času.'
+        : cur.tsb > 5   ? 'Svež in spočit — idealno za tekmo ali test.'
+        : cur.tsb > -10 ? 'Nevtralno — dobro razmerje med tregom in regeneracijo.'
+        : cur.tsb > -30 ? 'Produktivna utrujenost — optimalna cona za trenažni napredek.'
+        : cur.tsb > -50 ? 'Visoka utrujenost — potrebna regeneracija, pazi na preobremenitev.'
+        : 'Preobremenjenost — visoko tveganje za poškodbo ali bolezen.'
+
+      const ctlTrendColor = ctlD14 >= 5 ? '#22c55e' : ctlD14 >= 0 ? '#eab308' : '#ef4444'
+      const ctlTrendOpis  = ctlD14 >= 5  ? `Fitnes baza raste dobro (+${ctlD14} v 14 dneh).`
+        : ctlD14 >= 2  ? `Fitnes baza raste počasi (+${ctlD14} v 14 dneh).`
+        : ctlD14 >= -2 ? `Fitnes baza je stabilna (${ctlD14>=0?'+':''}${ctlD14} v 14 dneh).`
+        : `Fitnes baza pada (${ctlD14} v 14 dneh) — premalo treninga.`
+
+      const atlTrendColor = Math.abs(atlD7) < 5 ? '#94a3b8' : atlD7 > 0 ? '#f97316' : '#22c55e'
+      const atlTrendOpis  = atlD7 > 20  ? `Hitro narašča (+${atlD7}) — zelo visoka obremenitev.`
+        : atlD7 > 5   ? `Narašča (+${atlD7}) — teden s povečanim treningom.`
+        : atlD7 > -5  ? `Stabilen (${atlD7>=0?'+':''}${atlD7}).`
+        : atlD7 > -20 ? `Pada (${atlD7}) — regeneracijski teden.`
+        : `Hitro pada (${atlD7}) — manj treninga ali tapering.`
+
+      const tsbTrendColor = tsbD7 > 0 ? '#22c55e' : tsbD7 < -5 ? '#f97316' : '#94a3b8'
+      const tsbTrendOpis  = tsbD7 > 10 ? `Form se hitro izboljšuje (+${tsbD7} v 7 dneh) — regeneracija poteka.`
+        : tsbD7 > 3   ? `Form se izboljšuje (+${tsbD7} v 7 dneh).`
+        : tsbD7 > -3  ? `Form je stabilen (${tsbD7>=0?'+':''}${tsbD7} v 7 dneh).`
+        : tsbD7 > -10 ? `Form pada (${tsbD7} v 7 dneh) — utrujenost se kopiči.`
+        : `Form hitro pada (${tsbD7} v 7 dneh) — visoka obremenitev.`
+
+      return (
+        <div className="card" style={{marginBottom:16}}>
+          <h3>Interpretacija ATL / CTL / Form</h3>
+
+          {/* Trenutno stanje */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}}>
+            {[
+              { label:'ATL — Akutna utrujenost', val:cur.atl,  color:atlColor, opis:atlOpis },
+              { label:'CTL — Fitnes baza',       val:cur.ctl,  color:'#3b82f6', opis:ctlOpis },
+              { label:'Form (TSB = CTL−ATL)',    val:(cur.tsb>0?'+':'')+cur.tsb, color:tsbColor, opis:tsbOpis },
+            ].map(({label,val,color,opis}) => (
+              <div key={label} style={{background:'#080f1e',borderRadius:6,padding:'10px 12px',border:'1px solid #1e2433'}}>
+                <div style={{fontSize:10,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>{label}</div>
+                <div style={{fontSize:22,fontWeight:700,color,fontFamily:'DM Mono',marginBottom:5}}>{val}</div>
+                <div style={{fontSize:11,color:'#64748b',lineHeight:1.4}}>{opis}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Trendi */}
+          <div style={{borderTop:'1px solid #1e2433',paddingTop:12,marginBottom:14}}>
+            <div style={{fontSize:10,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Trendi</div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {[
+                { label:'CTL / 14 dni', color:ctlTrendColor, opis:ctlTrendOpis },
+                { label:'ATL / 7 dni',  color:atlTrendColor, opis:atlTrendOpis },
+                { label:'Form / 7 dni', color:tsbTrendColor, opis:tsbTrendOpis },
+                {
+                  label:'Neg. TSB / 30d',
+                  color: daysNegTsb > 20 ? '#f97316' : daysNegTsb > 10 ? '#eab308' : '#94a3b8',
+                  opis: `${daysNegTsb}/30 dni v utrujenosti — ${daysNegTsb>20?'kronična utrujenost, potreben regeneracijski teden':daysNegTsb>10?'normalna obremenitev za maratonske priprave':'dobro razmerje'}`,
+                },
+                {
+                  label:'Peak ATL / 30d',
+                  color: peakAtl30 > 200 ? '#ef4444' : peakAtl30 > 150 ? '#f97316' : '#94a3b8',
+                  opis: `${peakAtl30} — ${peakAtl30>200?'kritično visok vrh obremenitve v zadnjem mesecu':peakAtl30>150?'visok vrh, pazi na kopičenje':peakAtl30>100?'zmeren vrh obremenitve':'nizek vrh, možno povečanje km'}`,
+                },
+              ].map(({label,color,opis}) => (
+                <div key={label} style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+                  <span style={{fontSize:11,fontFamily:'DM Mono',color:'#334155',minWidth:100,flexShrink:0,paddingTop:1}}>{label}</span>
+                  <span style={{fontSize:12,color,lineHeight:1.5}}>{opis}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Kaj pomenijo metrike */}
+          <div style={{borderTop:'1px solid #1e2433',paddingTop:12}}>
+            <div style={{fontSize:10,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Kaj pomenijo metrike</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[
+                { title:'ATL — Acute Training Load', color:'#f97316', lines:[
+                  '7-dnevno drseče povprečje obremenitve.',
+                  'Meri kratkoročno akutno utrujenost.',
+                  '< 50 nizka · 50–100 zmerna · 100–150 visoka · > 150 kritična',
+                ]},
+                { title:'CTL — Chronic Training Load', color:'#3b82f6', lines:[
+                  '28-dnevno drseče povprečje = fitnes baza.',
+                  'Raste počasi (tedni), pada hitreje (dnevi brez treninga).',
+                  '< 40 nizka · 40–70 zmerna · 70–100 dobra · > 100 vrhunska',
+                ]},
+                { title:'TSB — Training Stress Balance', color:'#22c55e', lines:[
+                  'Form = CTL − ATL. Meri razmerje fitnes/utrujenost.',
+                  '+5 do +20: idealno za tekmo ali test.',
+                  '−10 do −30: produktivna utrujenost (napredek).',
+                  '< −40: nevarnost preobremenitve.',
+                ]},
+                { title:'ATL/CTL — Razmerje obremenitve', color:'#a78bfa', lines:[
+                  'Meri hitrost povečevanja treninga.',
+                  '< 0.8 premalo · 0.8–1.3 optimalno.',
+                  '1.3–1.5 visoka obremenitev · > 1.5 nevarnost poškodbe.',
+                ]},
+              ].map(({title,color,lines}) => (
+                <div key={title} style={{background:'#080f1e',borderRadius:6,padding:'10px 12px',border:'1px solid #1e2433'}}>
+                  <div style={{fontSize:11,color,fontWeight:600,marginBottom:6,fontFamily:'DM Mono'}}>{title}</div>
+                  {lines.map((l,i) => (
+                    <div key={i} style={{fontSize:11,color:'#64748b',lineHeight:1.55,paddingLeft:8,borderLeft:`2px solid ${color}22`,marginBottom:i<lines.length-1?3:0}}>{l}</div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    })()}
+
   </>)
 }
