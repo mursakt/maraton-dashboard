@@ -18,8 +18,12 @@ function calcDecoupling(lapList) {
     .filter(Boolean)
   if (data.length < 4) return null
   const half = Math.floor(data.length / 2)
-  const ratio = arr => arr.reduce((s, d) => s + d.pace / d.hr, 0) / arr.length
-  return Math.round((ratio(data.slice(half)) - ratio(data.slice(0, half))) / ratio(data.slice(0, half)) * 1000) / 10
+  // Frielov standard: fatigue index = pace_sec × HR (višje = slabše)
+  // decoupling = (f2/f1 - 1) × 100 → pozitivno ko HR raste in/ali tempo pada
+  const fatigue = arr => arr.reduce((s, d) => s + d.pace * d.hr, 0) / arr.length
+  const f1 = fatigue(data.slice(0, half))
+  const f2 = fatigue(data.slice(half))
+  return Math.round((f2 / f1 - 1) * 1000) / 10
 }
 
 function detectTipLocal(workout) {
@@ -36,11 +40,11 @@ function detectTipLocal(workout) {
 }
 
 function decouplingInterpretacija(pct) {
-  if (pct < 0)   return 'Negativni decoupling — HR je padal ali tempo naraščal. Preveri GPS podatke ali profil trase.'
+  if (pct < 0)   return 'Negativni split aerobno — srce in tempo sta se izboljšala v drugi polovici. Odlična aerobna kontrola.'
   if (pct < 3)   return 'Odlično aerobno — srce je ostalo stabilno skozi ves tek. Aerobna baza je na visoki ravni.'
   if (pct < 5)   return 'Dobra aerobna stabilnost — normalna variacija, srce se ni bistveno utrudilo.'
-  if (pct < 8)   return 'Blag cardiac drift — rahla utrujenost srca, pogosta pri daljših tekih. Morda malo nizek glikogen ob koncu.'
-  if (pct < 15)  return 'Zmeren drift — srce se je utrudilo. Možni vzroki: nizek glikogen dan prej, dehidracija ali previsok tempo.'
+  if (pct < 10)  return 'Blag cardiac drift — rahla utrujenost srca v drugi polovici. Morda malo nizek glikogen ob koncu.'
+  if (pct < 20)  return 'Zmeren drift — srce se je utrudilo. Možni vzroki: nizek glikogen dan prej, dehidracija ali previsok tempo.'
   return 'Velik drift — glikogen je bil zelo nizek ali napor previsok. Preveri prehrano dan prej in hidracijo med tekom.'
 }
 
@@ -208,9 +212,9 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               : null
 
             const dcColor = decouplingPct === null ? '#6b7280'
-              : Math.abs(decouplingPct) < 5 ? '#22c55e'
-              : decouplingPct < 8 ? '#eab308' : '#ef4444'
-            const dcLabel = decouplingPct === null ? '' : Math.abs(decouplingPct) < 5 ? '✓ aerobno stabilno' : decouplingPct < 8 ? '⚠ blag drift' : '⚠ cardiac drift'
+              : decouplingPct < 5 ? '#22c55e'
+              : decouplingPct < 10 ? '#eab308' : '#ef4444'
+            const dcLabel = decouplingPct === null ? '' : decouplingPct < 5 ? '✓ aerobno stabilno' : decouplingPct < 10 ? '⚠ blag drift' : '⚠ cardiac drift'
 
             const paceMin = chartData.length ? Math.min(...chartData.map(d=>d.pace)) - 10 : 0
             const paceMax = chartData.length ? Math.max(...chartData.map(d=>d.pace)) + 10 : 400
