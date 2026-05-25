@@ -30,8 +30,6 @@ const DAYS = [
 ]
 
 const METRICS = [
-  { key: 'eff',    label: 'Učinkovitost', val: 97,     prev: 94,     unit: '%', goodUp: true,  anim: true  },
-  { key: 'sleep',  label: 'Spanje',       val: '5:56', prev: '5:42', unit: '',  goodUp: true,  anim: false },
   { key: 'awake',  label: 'Budnost',      val: '0:11', prev: '0:18', unit: '',  goodUp: false, anim: false },
   { key: 'events', label: 'Prebujanj',    val: 10,     prev: 13,     unit: '',  goodUp: false, anim: true  },
   { key: 'stress', label: 'Stres',        val: 0,      prev: 2,      unit: '%', goodUp: false, anim: true  },
@@ -326,68 +324,6 @@ export function SleepConsistency() {
         <span style={{ color: COLOR_BAD  }}>■ &lt;6h</span>
         <span style={{ color: '#f59e0b', marginLeft: 8 }}>— — ø spanje</span>
         <span style={{ color: '#38bdf8' }}>— — ø prebujenje</span>
-      </div>
-
-      {/* ── sleep duration trend bars ── */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 10, color: '#475569', fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>
-          Trajanje po dnevih
-        </div>
-        <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 40 }}>
-          {daysWithDur.map((d, i) => {
-            const pct = Math.min(100, (d.dur / (10 * 60)) * 100)
-            const color = durColor(d.dur)
-            return (
-              <React.Fragment key={d.date}>
-                <div
-                  key={d.date}
-                  title={`${d.day}: ${durStr(d.dur)}`}
-                  style={{
-                    flex: 1, height: `${pct}%`,
-                    background: color + (selected === i ? 'cc' : '55'),
-                    border: `1px solid ${color + '88'}`,
-                    borderRadius: '2px 2px 0 0',
-                    transition: 'background .15s',
-                    cursor: 'pointer',
-                    alignSelf: 'flex-end',
-                  }}
-                  onClick={() => setSelected(selected === i ? null : i)}
-                />
-                {i === 6 && <div style={{ width: 1, background: '#1e2433', flexShrink: 0, alignSelf: 'stretch' }} />}
-              </React.Fragment>
-            )
-          })}
-        </div>
-        {/* 8h reference */}
-        <div style={{ height: 1, background: '#1e2433', marginTop: 1 }} />
-        <div style={{ fontSize: 9, color: '#334155', fontFamily: 'DM Mono', textAlign: 'right', marginTop: 2 }}>
-          cilj: 8h
-        </div>
-      </div>
-
-      {/* ── efficiency bar ── */}
-      <div style={{ marginBottom: 16, paddingTop: 12, borderTop: '1px solid #1e2433' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, fontSize: 11, fontFamily: 'DM Mono' }}>
-          <span style={{ color: '#475569', textTransform: 'uppercase', letterSpacing: '.5px', fontSize: 10 }}>
-            Učinkovitost spanja
-          </span>
-          <div style={{ display: 'flex', gap: 14, fontSize: 10 }}>
-            <span style={{ color: COLOR_GOOD }}>● 5:56 spanje</span>
-            <span style={{ color: '#475569' }}>● 0:11 budnost</span>
-          </div>
-        </div>
-        <div style={{ position: 'relative', height: 8, background: '#1e2433', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{
-            position: 'absolute', left: 0, top: 0, height: '100%',
-            width: mounted ? '97%' : '0%',
-            background: 'linear-gradient(90deg, #15803d, #22c55e)',
-            borderRadius: 4,
-            transition: 'width 1s cubic-bezier(.4,0,.2,1)',
-          }} />
-        </div>
-        <div style={{ textAlign: 'right', marginTop: 4, fontSize: 10, fontFamily: 'DM Mono', color: COLOR_GOOD }}>
-          {mounted ? <CountUp to={97} unit="%" duration={1000} /> : '0%'}
-        </div>
       </div>
 
       {/* ── metric cards ── */}
