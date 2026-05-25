@@ -513,30 +513,20 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
   const avgOH = z7.reduce((s,p,_,a) => s + p.ogljikovi_hidrati_g/a.length, 0) || 0
   const avgMasc = z7.reduce((s,p,_,a) => s + p.masc_g/a.length, 0) || 0
 
-  const graf14 = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum <= TODAY_STR).slice(0, 14).reverse()
-
-  // Waterfall podatki za zadnjih 7 dni
-  const waterfall7 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 7).reverse().map(p => {
+  // Kalorijska bilanca — zadnjih 14 dni
+  const waterfall14 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 14).reverse().map(p => {
     const mD = metrike.find(m => m.datum === p.datum) || {}
     const bmrD = mD.bmr_kcal || 1946
     const aktivneD = mD.aktivne_kcal || 0
     const skupajPor = mD.skupaj_kcal || (bmrD + aktivneD)
-    const deficit = p.kalorije_skupaj - skupajPor
     return {
       datum: p.datum?.slice(5),
       zauzite: p.kalorije_skupaj,
       bmr: bmrD,
       aktivne: aktivneD,
       skupaj_porabljene: skupajPor,
-      deficit: Math.round(deficit),
+      deficit: Math.round(p.kalorije_skupaj - skupajPor),
     }
-  })
-  const deficitData = graf14.map(p => {
-    const w = workouts.filter(w2 => w2.datum === p.datum).reduce((s, w2) => s + (w2.kalorije || 0), 0)
-    const mD = metrike.find(m2 => m2.datum === p.datum) || {}
-    const porabljene = mD.skupaj_kcal || (mD.bmr_kcal ? mD.bmr_kcal + w : 1946 + w)
-    const def = p.kalorije_skupaj - porabljene
-    return { datum: p.datum?.slice(5), zauzite: p.kalorije_skupaj, porabljene, deficit: def }
   })
 
   // Analiza trendov
@@ -820,52 +810,23 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
       </div>
     )}
 
-    {/* Waterfall kalorijski graf - zadnjih 7 dni */}
-    {waterfall7.length > 0 && (() => {
-      // Pravi waterfall: vsak dan = zauzite (zeleno) - bmr (rdeče) - aktivne (rdeče) = bilanca
-      // Stolpci: začnejo tam kjer prejšnji konča (kumulativni)
-      const waterfallData = waterfall7.map(d => {
-        // Za vsak dan naredi 3 stolpce: zauzite, -bmr, -aktivne
-        return [
-          { datum: d.datum, label: 'Zaužite', value: d.zauzite, type: 'zauzite' },
-          { datum: d.datum, label: 'BMR', value: -d.bmr, type: 'bmr' },
-          { datum: d.datum, label: 'Aktivne', value: -d.aktivne, type: 'aktivne' },
-        ]
-      }).flat()
-
-      // Izračunaj kumulativne vrednosti za waterfall
-      let running = 0
-      const wfBars = waterfall7.map(d => {
-        const startZauzite = running
-        running += d.zauzite
-        const startBmr = running
-        running -= d.bmr
-        const startAktivne = running
-        running -= d.aktivne
-        const bilanca = d.deficit
-        return {
-          datum: d.datum,
-          // Zaužite: od 0 do zauzite
-          zauziteStart: 0,
-          zauziteVal: d.zauzite,
-          // BMR: od zauzite navzdol
-          bmrStart: d.zauzite - d.bmr,
-          bmrVal: d.bmr,
-          // Aktivne: od (zauzite-bmr) navzdol
-          aktivneStart: d.zauzite - d.bmr - d.aktivne,
-          aktivneVal: d.aktivne,
-          // Bilanca
-          bilanca: d.deficit,
-          skupajPor: d.skupaj_porabljene,
-          zauzite: d.zauzite,
-        }
-      })
+    {/* Kalorijska bilanca — zadnjih 14 dni */}
+    {waterfall14.length > 0 && (() => {
+      const wfBars = waterfall14.map(d => ({
+        datum: d.datum,
+        zauziteVal: d.zauzite,
+        bmrVal: d.bmr,
+        aktivneVal: d.aktivne,
+        bilanca: d.deficit,
+        skupajPor: d.skupaj_porabljene,
+        zauzite: d.zauzite,
+      }))
 
       return (
         <div className="card" style={{marginBottom:16}}>
-          <h3>Kalorijska bilanca — zadnjih 7 dni</h3>
+          <h3>Kalorijska bilanca — zadnjih 14 dni</h3>
           <div style={{fontSize:11,color:'#475569',marginBottom:12,fontFamily:'DM Mono'}}>
-            🟢 Zaužite &nbsp;·&nbsp; 🔵 BMR (pasivne) &nbsp;·&nbsp; 🟣 Aktivne
+            🟢 Zaužite &nbsp;·&nbsp; 🔵 BMR (pasivne) &nbsp;·&nbsp; 🟣 Aktivne &nbsp;·&nbsp; črt. linija = bilanca
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={wfBars} margin={{top:8,right:8,left:10,bottom:0}}>
@@ -873,12 +834,6 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
               <XAxis dataKey="datum" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
               <YAxis tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} width={45}/>
               <Tooltip
-                contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}
-                formatter={(v, name, props) => {
-                  const d = props.payload
-                  if (name === 'bilanca') return [`${v > 0 ? '+' : ''}${Math.round(v)} kcal`, 'Bilanca']
-                  return null
-                }}
                 content={({active, payload, label}) => {
                   if (!active || !payload?.length) return null
                   const d = payload[0]?.payload
@@ -890,30 +845,31 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
                       <div style={{color:'#3b82f6'}}>BMR: {Math.round(d.bmrVal)} kcal</div>
                       <div style={{color:'#8b5cf6'}}>Aktivne: {Math.round(d.aktivneVal)} kcal</div>
                       <div style={{color:'#64748b'}}>Skupaj porabljene: {Math.round(d.skupajPor)} kcal</div>
-                      <div style={{color: d.bilanca >= 0 ? '#22c55e' : '#ef4444', fontWeight:600, marginTop:4, borderTop:'1px solid #1e2433', paddingTop:4}}>
-                        Bilanca: {d.bilanca >= 0 ? '+' : ''}{Math.round(d.bilanca)} kcal
+                      <div style={{color: d.bilanca < 0 ? '#22c55e' : '#ef4444', fontWeight:600, marginTop:4, borderTop:'1px solid #1e2433', paddingTop:4}}>
+                        Bilanca: {d.bilanca > 0 ? '+' : ''}{Math.round(d.bilanca)} kcal
                       </div>
                     </div>
                   )
                 }}
               />
+              <ReferenceLine y={0} stroke="#475569" strokeDasharray="2 2" strokeWidth={1}/>
               <Bar dataKey="zauziteVal" name="Zaužite" stackId="a" fill="#22c55e" radius={[3,3,0,0]} opacity={0.85}/>
               <Bar dataKey="bmrVal" name="BMR" stackId="b" fill="#3b82f6" radius={[0,0,0,0]} opacity={0.75}/>
               <Bar dataKey="aktivneVal" name="Aktivne" stackId="b" fill="#8b5cf6" radius={[0,0,3,3]} opacity={0.75}/>
               <Line type="monotone" dataKey="bilanca" name="Bilanca" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 3"
                 dot={(props) => {
                   const {cx, cy, payload} = props
-                  return <circle key={cx+cy} cx={cx} cy={cy} r={4} fill={payload.bilanca >= 0 ? '#22c55e' : '#ef4444'} stroke="#0f172a" strokeWidth={2}/>
+                  return <circle key={cx+cy} cx={cx} cy={cy} r={4} fill={payload.bilanca < 0 ? '#22c55e' : '#ef4444'} stroke="#0f172a" strokeWidth={2}/>
                 }}
               />
             </ComposedChart>
           </ResponsiveContainer>
           <div style={{display:'flex',gap:6,marginTop:12,flexWrap:'wrap'}}>
-            {waterfall7.map((d,i)=>(
-              <div key={i} style={{padding:'6px 10px',borderRadius:6,background:'#0f172a',border:`1px solid ${d.deficit>=0?'#14532d':'#450a0a'}`,fontSize:11,fontFamily:'DM Mono',minWidth:64,textAlign:'center'}}>
+            {waterfall14.map((d,i) => (
+              <div key={i} style={{padding:'6px 10px',borderRadius:6,background:'#0f172a',border:`1px solid ${d.deficit<0?'#14532d':'#450a0a'}`,fontSize:11,fontFamily:'DM Mono',minWidth:64,textAlign:'center'}}>
                 <div style={{color:'#475569',marginBottom:3}}>{d.datum}</div>
-                <div style={{color:d.deficit>=0?'#22c55e':'#ef4444',fontWeight:600,fontSize:12}}>
-                  {d.deficit>=0?'+':''}{d.deficit}
+                <div style={{color:d.deficit<0?'#22c55e':'#ef4444',fontWeight:600,fontSize:12}}>
+                  {d.deficit>0?'+':''}{d.deficit}
                 </div>
                 <div style={{color:'#334155',fontSize:10,marginTop:2}}>kcal</div>
               </div>
@@ -922,9 +878,6 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
         </div>
       )
     })()}
-
-    {/* Kalorijski deficit graf */}
-
 
     {/* Povprečje 7 dni + linijski grafi */}
     <div className="grid2" style={{marginBottom:16}}>

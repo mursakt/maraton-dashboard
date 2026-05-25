@@ -1,4 +1,5 @@
 import React from 'react'
+import { SleepConsistency } from './SleepConsistency'
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend, ComposedChart } from 'recharts'
 import { PLAN } from '../constants/plan'
 import { izracunajFormo } from '../utils/calculations'
@@ -181,6 +182,8 @@ export function TabTelo({metrike, workouts=[]}){
         ):<div className="empty">Ni dovolj podatkov</div>}
       </div>
     </div>
+
+    <SleepConsistency />
 
   </>)
 }
