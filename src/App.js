@@ -69,7 +69,7 @@ export default function App() {
       {tab==='treningi'&&<TabTreningi workouts={workouts} metrike={metrike} prehrana={prehrana} laps={laps} onRefresh={fetchAll}/>}
       {tab==='telo'&&<TabTelo metrike={metrike} workouts={workouts}/>}
       {tab==='prehrana'&&<TabPrehrana prehrana={prehrana} workouts={workouts} metrike={metrike} prehranaCilji={prehranaCilji} onRefresh={fetchAll}/>}
-      {tab==='cilji'&&<TabCilji prehranaCilji={prehranaCilji} onRefresh={fetchAll}/>}
+      {tab==='cilji'&&<TabCilji prehranaCilji={prehranaCilji} onRefresh={fetchAll} workouts={workouts} metrike={metrike} prehrana={prehrana}/>}
       {tab==='plan'&&<TabPlan currentTeden={currentTeden} workouts={workouts}/>}
       {tab==='predikcija'&&<TabPredikcija predikcija={predikcija} workouts={workouts}/>}
     </div>
