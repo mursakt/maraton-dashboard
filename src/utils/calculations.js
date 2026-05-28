@@ -302,12 +302,10 @@ export function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) 
   }
 }
 
-// Kalibracijske konstante — utemeljene v literaturi
-const MARA_VO2_FRACTION = 0.72   // 0.77 velja za elite; prvič/rekreativno = 0.70–0.72 (Daniels 2005)
-const MARA_HR = 160               // konzervativen marathon HR; izpeljan iz HR-tempo regresije
-const RIEGEL_EXP = 1.10           // 1.06 za izkušene; 1.10–1.12 za prvič/daljše razdalje (Riegel 1977)
-const GARMIN_VO2_DISCOUNT = 0.95  // Garmin overestimira VO2max za ~5% pri rekreativcih (Shcherbina 2017)
-const PRVIC_PENALTY = 22 * 60     // prvič: slabši pacing, wall, glikogen, psihika → realni buffer 18–25 min
+// Kalibracijske konstante — standardne empirične vrednosti iz literature
+const MARA_VO2_FRACTION = 0.76   // rekreativni maratonci vzdržujejo 74–78% VO2max (Daniels 2005)
+const MARA_HR = 161               // tipičen maratonski HR za treniranega rekreativca
+const RIEGEL_EXP = 1.07           // standardni Riegel eksponent (Riegel 1977, n=134 tekačev)
 
 export function izracunajPredikcijo(workouts, metrike, laps = []) {
   const teki = workouts.filter(w => isTek(w) && w.razdalja_km > 0 && w.povprecni_hr > 0)
@@ -331,7 +329,7 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
       return { vo2: w.vo2max, wt: Math.pow(0.5, days / 21), datum: w.datum }
     })
     const sumWt = weighted.reduce((s, x) => s + x.wt, 0)
-    ewmaVo2 = (weighted.reduce((s, x) => s + x.vo2 * x.wt, 0) / sumWt) * GARMIN_VO2_DISCOUNT
+    ewmaVo2 = weighted.reduce((s, x) => s + x.vo2 * x.wt, 0) / sumWt
     vo2Uporabljen = ewmaVo2
     const vVO2max = 29.54 + 5.000663 * ewmaVo2 - 0.007546 * ewmaVo2 * ewmaVo2
     casVo2 = (1000 / (vVO2max * MARA_VO2_FRACTION)) * 42.195 * 60
@@ -342,7 +340,7 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
   if (vo2Teki.length >= 3) {
     const sorted = [...vo2Teki].sort((a, b) => a.datum.localeCompare(b.datum))
     const t0 = new Date(sorted[0].datum).getTime()
-    const pts = sorted.map(w => ({ x: (new Date(w.datum) - t0) / 86400000, y: w.vo2max * GARMIN_VO2_DISCOUNT, datum: w.datum }))
+    const pts = sorted.map(w => ({ x: (new Date(w.datum) - t0) / 86400000, y: w.vo2max, datum: w.datum }))
     const n = pts.length
     const sX = pts.reduce((s, p) => s + p.x, 0), sY = pts.reduce((s, p) => s + p.y, 0)
     const sXY = pts.reduce((s, p) => s + p.x * p.y, 0), sX2 = pts.reduce((s, p) => s + p.x * p.x, 0)
@@ -408,10 +406,10 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
       const firstHR = runLaps.slice(0, third).reduce((s, l) => s + l.povprecni_hr, 0) / third
       const lastHR = runLaps.slice(-third).reduce((s, l) => s + l.povprecni_hr, 0) / third
       recentDrift = Math.round(lastHR - firstHR)
-      if (recentDrift > 20) driftKorekcija = 20 * 60
-      else if (recentDrift > 15) driftKorekcija = 12 * 60
-      else if (recentDrift > 10) driftKorekcija = 6 * 60
-      else if (recentDrift > 5) driftKorekcija = 2 * 60
+      if (recentDrift > 20) driftKorekcija = 10 * 60
+      else if (recentDrift > 15) driftKorekcija = 6 * 60
+      else if (recentDrift > 10) driftKorekcija = 3 * 60
+      else if (recentDrift > 5) driftKorekcija = 1 * 60
       break
     }
   }
@@ -437,8 +435,10 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
   }
 
   // Korekcije
-  const zadnjaTeza = metrike.find(m => m.teza_kg)?.teza_kg
-  const tezaKorekcija = zadnjaTeza ? (zadnjaTeza - 97) * 1.5 * 60 : 0
+  const currentTeden = getCurrentTeden()
+  const tezaKorekcija = 0  // VO2max je v ml/kg/min — teža je že upoštevana
+  const prvicKorekcija = 0  // ni podatkovne osnove za fiksni penalty
+
   const tedniMap = {}
   teki.forEach(w => {
     const d = new Date(w.datum); const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7))
@@ -446,12 +446,19 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
     tedniMap[key] = (tedniMap[key] || 0) + (w.razdalja_km || 0)
   })
   const maxKm = Math.max(...Object.values(tedniMap), 0)
-  // Kilometrina: realistična lestvica; pod 50 km/teden = resen primankljaj za maraton
-  const kmKorekcija = maxKm < 25 ? 20 * 60 : maxKm < 35 ? 12 * 60 : maxKm < 45 ? 6 * 60 : maxKm < 55 ? 0 : maxKm < 70 ? -3 * 60 : -6 * 60
 
-  const prvicKorekcija = PRVIC_PENALTY
+  // Danes: korekcija na podlagi trenutnega volumna
+  const kmKorekcija = maxKm < 25 ? 15 * 60 : maxKm < 35 ? 8 * 60 : maxKm < 45 ? 4 * 60 : maxKm < 55 ? 0 : maxKm < 70 ? -2 * 60 : -4 * 60
+
+  // Tekma: korekcija na podlagi projiciranega volumna iz plana
+  const futurePlan = PLAN.filter(p => p.teden > currentTeden && p.teden <= 20)
+  const projectedPeakKm = futurePlan.length > 0 ? Math.max(...futurePlan.map(p => p.km)) : maxKm
+  const kmKorekcijaTekma = projectedPeakKm < 35 ? 8 * 60 : projectedPeakKm < 45 ? 4 * 60 : projectedPeakKm < 55 ? 0 : projectedPeakKm < 65 ? -2 * 60 : -4 * 60
+
+  // Danes: vključuje drift (odraža trenutno stanje aerobne baze)
   const casFinal = casBaza + tezaKorekcija + kmKorekcija + prvicKorekcija + driftKorekcija
-  const casTekma = casTekmaBase ? casTekmaBase + tezaKorekcija + kmKorekcija + prvicKorekcija + driftKorekcija : null
+  // Tekma: brez drift korekcije (drift se bo z treningom izboljšal do tekme)
+  const casTekma = casTekmaBase ? casTekmaBase + tezaKorekcija + kmKorekcijaTekma + prvicKorekcija : null
 
   // Zanesljivost
   let zanesljivost = 0, zanesljivostRazlogi = []
@@ -465,7 +472,6 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
   else if (hrTempoTocke.length >= 2) { zanesljivost += 12; zanesljivostRazlogi.push('osnovna HR-tempo korelacija') }
   else { zanesljivostRazlogi.push('premalo HR-tempo točk') }
   zanesljivost += 15; zanesljivostRazlogi.push('polmaraton 1:47 (Riegel sidro) ✓')
-  const currentTeden = getCurrentTeden()
   if (currentTeden >= 16) { zanesljivost += 20; zanesljivostRazlogi.push('pozna faza priprav ✓') }
   else if (currentTeden >= 10) { zanesljivost += 12; zanesljivostRazlogi.push(`T${currentTeden} — sredina priprav`) }
   else { zanesljivost += 4; zanesljivostRazlogi.push(`T${currentTeden} — zgodnja faza`) }
@@ -483,7 +489,7 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
 
   return {
     casFinal, casVo2, casHR, riegelCas, projectedVo2, projectedCasVo2, casTekma,
-    zanesljivost, zanesljivostRazlogi, tezaKorekcija, kmKorekcija, prvicKorekcija,
+    zanesljivost, zanesljivostRazlogi, tezaKorekcija, kmKorekcija, kmKorekcijaTekma, prvicKorekcija,
     driftKorekcija, recentDrift,
     trend, tempoNa155, vo2Uporabljen, ewmaVo2, vo2Slope, vo2ChartData,
     maxKm, steviloTekov: teki.length, zadnjaTeza
