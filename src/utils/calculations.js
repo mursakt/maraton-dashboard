@@ -436,6 +436,7 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
 
   // Korekcije
   const currentTeden = getCurrentTeden()
+  const zadnjaTeza = metrike.find(m => m.teza_kg)?.teza_kg
   const tezaKorekcija = 0  // VO2max je v ml/kg/min — teža je že upoštevana
   const prvicKorekcija = 0  // ni podatkovne osnove za fiksni penalty
 
