@@ -2,6 +2,7 @@ import React from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
 import { isTek, fmt } from '../utils/helpers'
 import { secToHMS, secToTempoStr, tempoStrToSec } from '../utils/tempo'
+import { oceniRealizem } from '../utils/realizem'
 
 function diffLabel(sec) {
   const abs = Math.abs(sec)
@@ -9,7 +10,7 @@ function diffLabel(sec) {
   return `${m}min ${s > 0 ? s + 's' : ''}`.trim()
 }
 
-export function TabPredikcija({ predikcija, workouts, laps = [] }) {
+export function TabPredikcija({ predikcija, workouts, laps = [], metrike = [] }) {
   if (!predikcija) return <div className="empty">Ni dovolj podatkov za predikcijo</div>
   const {
     casFinal, casVo2, casHR, riegelCas, projectedVo2, projectedCasVo2, casTekma,
@@ -58,6 +59,11 @@ export function TabPredikcija({ predikcija, workouts, laps = [] }) {
     return result
   }, [laps, workouts])
 
+  const realizem = React.useMemo(
+    () => oceniRealizem(predikcija, workouts, metrike, laps),
+    [predikcija, workouts, metrike, laps]
+  )
+
   const metodeDanes = [
     casVo2 && { label: 'VO2max EWMA', cas: casVo2, w: '35%', color: '#a78bfa', opis: `${fmt(ewmaVo2, 1)} ml/kg/min (eksponentno uteženo)` },
     casHR && { label: 'HR-tempo WLS', cas: casHR, w: '35%', color: '#3b82f6', opis: 'utežena regresija (trajanje × recency)' },
@@ -100,6 +106,45 @@ export function TabPredikcija({ predikcija, workouts, laps = [] }) {
         )}
       </div>
     </div>
+
+    {/* Neodvisna ocena realizma */}
+    {realizem && (
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{ margin: 0 }}>Neodvisna ocena realizma</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 120, height: 6, background: '#1e2433', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ width: `${realizem.pct}%`, height: '100%', background: realizem.verdictColor, borderRadius: 3, transition: 'width 0.4s' }} />
+            </div>
+            <span style={{ fontFamily: 'DM Mono', fontSize: 13, color: realizem.verdictColor, fontWeight: 600, minWidth: 140 }}>
+              {realizem.verdict} · {realizem.pct}%
+            </span>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: '#475569', fontFamily: 'DM Mono', marginBottom: 12, fontStyle: 'italic' }}>
+          {realizem.verdictOpis}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {realizem.checks.map((c, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '7px 10px', borderRadius: 5, background: '#080f1e', border: `1px solid ${c.color}18` }}>
+              <span style={{ fontSize: 13, color: c.color, minWidth: 16, marginTop: 1 }}>
+                {c.score >= 1 ? '✓' : c.score <= -1 ? '✗' : '~'}
+              </span>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: c.color, fontWeight: 600 }}>{c.label}</span>
+                <span style={{ fontSize: 11, color: '#475569', marginLeft: 8 }}>{c.message}</span>
+              </div>
+              <span style={{ fontSize: 10, fontFamily: 'DM Mono', color: c.score >= 1 ? '#22c55e' : c.score <= -1 ? '#ef4444' : '#eab308', minWidth: 24, textAlign: 'right', fontWeight: 700 }}>
+                {c.score > 0 ? `+${c.score}` : c.score}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 10, color: '#1e3a5f', fontFamily: 'DM Mono', marginTop: 10 }}>
+          Skupaj {realizem.score}/{realizem.maxScore} točk · Vsak check je neodvisen od modela predikcije
+        </div>
+      </div>
+    )}
 
     <div className="grid2" style={{ marginBottom: 16 }}>
       {/* Metode */}

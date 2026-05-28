@@ -71,7 +71,7 @@ export default function App() {
       {tab==='prehrana'&&<TabPrehrana prehrana={prehrana} workouts={workouts} metrike={metrike} prehranaCilji={prehranaCilji} onRefresh={fetchAll}/>}
       {tab==='cilji'&&<TabCilji prehranaCilji={prehranaCilji} onRefresh={fetchAll} workouts={workouts} metrike={metrike} prehrana={prehrana}/>}
       {tab==='plan'&&<TabPlan currentTeden={currentTeden} workouts={workouts}/>}
-      {tab==='predikcija'&&<TabPredikcija predikcija={predikcija} workouts={workouts} laps={laps}/>}
+      {tab==='predikcija'&&<TabPredikcija predikcija={predikcija} workouts={workouts} laps={laps} metrike={metrike}/>}
     </div>
   )
 }
