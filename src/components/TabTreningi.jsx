@@ -93,7 +93,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
     const key = mon.toISOString().slice(5, 10)
     const parts = (w.povprecni_tempo||'').split(':')
     const tempoSec = parts.length === 2 ? parseInt(parts[0])*60 + parseInt(parts[1]) : null
-    const norm = tempoSec ? Math.round(tempoSec + (w.povprecni_hr - 155) * 3) : null
+    const norm = tempoSec ? Math.round(tempoSec + (w.povprecni_hr - 155) * 4) : null
     if (norm) { if (!efikByWeek[key]) efikByWeek[key] = []; efikByWeek[key].push(norm) }
   })
   const kombiniranGraf = kmPoTednih.map(({ teden, km }) => ({

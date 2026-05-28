@@ -220,6 +220,8 @@ export const PLAN_TRENINGI = [
     razlaga: 'Dan D. Prvih 21 km konzervativno (HR pod 165) — ne glede na občutek. Acceleriraj po km 30.' },
 ]
 
+export const RACE_DATE = '2026-10-17'
+
 export const FAZA_COLOR = { F1: '#3b82f6', F2: '#eab308', F3: '#ef4444', F4: '#22c55e' }
 export const FAZA_LABEL = { F1: 'Faza 1 – Baza', F2: 'Faza 2 – Gradnja', F3: 'Faza 3 – Specifika', F4: 'Tapering' }
 

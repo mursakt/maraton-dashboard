@@ -1,7 +1,7 @@
 import React from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ComposedChart, Bar } from 'recharts'
 import { CILJI, TODAY_STR, YESTERDAY_STR } from '../constants/plan'
-import { fmt } from '../utils/helpers'
+import { fmt, izracunajBMR } from '../utils/helpers'
 import { ProgressBar } from './ProgressBar'
 
 const HRANA_DB = [
@@ -244,7 +244,7 @@ function PredlogObroka({ mikro, danes, cilj, prioritete, setPrioriteta, resetAll
         if (pct > 0) s += pct * (remaining / MIKRO_CILJI_DB[key] > 0.45 ? 38 : 20)
       })
       if (holesterolVisok && h.ho > 200) s -= 30
-      s += Math.random() * 8 - 4
+      s += ((h.n.charCodeAt(0) * 31 + (h.n.charCodeAt(1) || 0)) % 9) - 4
       return s
     }
 
@@ -516,7 +516,7 @@ export function TabPrehrana({prehrana, workouts, metrike=[], prehranaCilji=[], o
   // Kalorijska bilanca — zadnjih 14 dni
   const waterfall14 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 14).reverse().map(p => {
     const mD = metrike.find(m => m.datum === p.datum) || {}
-    const bmrD = mD.bmr_kcal || 1946
+    const bmrD = mD.bmr_kcal || izracunajBMR(metrike.find(m => m.teza_kg)?.teza_kg)
     const aktivneD = mD.aktivne_kcal || 0
     const skupajPor = mD.skupaj_kcal || (bmrD + aktivneD)
     return {

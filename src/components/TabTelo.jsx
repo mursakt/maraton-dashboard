@@ -18,7 +18,7 @@ export function TabTelo({metrike, workouts=[]}){
   const hrvMax = hrvData.length > 0 ? Math.max(...hrvData.map(d => d.hrv)) + 5 : 100
   const spanjeData=metrike.filter(m=>m.spanje_h).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),ure:m.spanje_h}))
   const restingHrData=metrike.filter(m=>m.resting_hr).slice(0,20).reverse().map(m=>({datum:m.datum?.slice(5),hr:m.resting_hr}))
-  const korakiData=metrike.filter(m=>m.koraki).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),koraki:m.koraki}))
+  const korakiData=metrike.filter(m=>m.koraki!=null).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),koraki:m.koraki}))
   const z=metrike[0]||{}
   const avgSpanje=metrike.filter(m=>m.spanje_h).slice(0,7).reduce((s,m,_,a)=>s+m.spanje_h/a.length,0)
   const avgHRV=metrike.filter(m=>m.hrv).slice(0,7).reduce((s,m,_,a)=>s+m.hrv/a.length,0)
@@ -27,8 +27,8 @@ export function TabTelo({metrike, workouts=[]}){
 
   const zadnjiBB = metrike.find(m=>m.body_battery_charged||m.body_battery_drained)||{}
   const zadnjiRestHR = metrike.find(m=>m.resting_hr)||{}
-  const zadnjiKoraki = metrike.find(m=>m.koraki)||{}
-  const avgKoraki7 = Math.round(metrike.filter(m=>m.koraki).slice(0,7).reduce((s,m,_,a)=>s+m.koraki/a.length,0))
+  const zadnjiKoraki = metrike.find(m=>m.koraki!=null)||{}
+  const avgKoraki7 = Math.round(metrike.filter(m=>m.koraki!=null).slice(0,7).reduce((s,m,_,a)=>s+m.koraki/a.length,0))
   const bbNet = (zadnjiBB.body_battery_charged||0) - (zadnjiBB.body_battery_drained||0)
 
   const xInterval = (len) => Math.max(0, Math.floor(len / 5) - 1)
@@ -74,7 +74,7 @@ export function TabTelo({metrike, workouts=[]}){
         })()}
       </div>
       <div className="card">
-        <h3>Koraki <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({metrike.find(m=>m.koraki)?.datum||'—'})</span></h3>
+        <h3>Koraki <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',fontWeight:400}}>({metrike.find(m=>m.koraki!=null)?.datum||'—'})</span></h3>
         <div><span className="stat-val" style={{color:zadnjiKoraki.koraki?(zadnjiKoraki.koraki>=10000?'#22c55e':zadnjiKoraki.koraki>=7000?'#eab308':'#f97316'):'#6b7280'}}>{zadnjiKoraki.koraki?(zadnjiKoraki.koraki/1000).toFixed(1)+'k':'—'}</span></div>
         <div className="stat-sub">povp. 7 dni: {avgKoraki7?(avgKoraki7/1000).toFixed(1)+'k':'—'} · cilj: 10k</div>
       </div>

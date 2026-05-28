@@ -1,6 +1,6 @@
-import { PLAN, CILJI, TODAY, TODAY_STR, YESTERDAY_STR, getCurrentTeden } from '../constants/plan'
+import { PLAN, CILJI, TODAY, TODAY_STR, YESTERDAY_STR, getCurrentTeden, RACE_DATE } from '../constants/plan'
 import { tempoStrToSec } from './tempo'
-import { isTek } from './helpers'
+import { isTek, izracunajBMR } from './helpers'
 
 export function izracunajLoad(workouts) {
   const danes = new Date()
@@ -181,14 +181,14 @@ export function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) 
   const workoutVceraj = workouts.filter(w => w.datum === danPred)
   const treningKcalVceraj = workoutVceraj.reduce((s, w) => s + (w.kalorije || 0), 0)
   const metVceraj = metrike.find(m => m.datum === danPred) || {}
-  const porabljeneVceraj = metVceraj.skupaj_kcal || (metVceraj.bmr_kcal ? metVceraj.bmr_kcal + treningKcalVceraj : 1946 + treningKcalVceraj)
+  const porabljeneVceraj = metVceraj.skupaj_kcal || ((metVceraj.bmr_kcal || izracunajBMR(metrike.find(m => m.teza_kg)?.teza_kg)) + treningKcalVceraj)
   const deficitVceraj = prehranaVceraj.kalorije_skupaj ? Math.round(prehranaVceraj.kalorije_skupaj - porabljeneVceraj) : null
 
   const zadnjih7Prehrana = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < tekDatum).slice(0, 7)
   const deficiti7 = zadnjih7Prehrana.map(p => {
     const w = workouts.filter(w2 => w2.datum === p.datum).reduce((s, w2) => s + (w2.kalorije || 0), 0)
     const mD = metrike.find(m2 => m2.datum === p.datum) || {}
-    const por = mD.skupaj_kcal || (mD.bmr_kcal ? mD.bmr_kcal + w : 1946 + w)
+    const por = mD.skupaj_kcal || ((mD.bmr_kcal || izracunajBMR(metrike.find(m => m.teza_kg)?.teza_kg)) + w)
     return p.kalorije_skupaj - por
   })
   const povprecniDeficit7 = deficiti7.length > 0 ? Math.round(deficiti7.reduce((s, d) => s + d, 0) / deficiti7.length) : null
@@ -200,9 +200,13 @@ export function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) 
   let driftOpis = null
   if (lapi.length >= 3) {
     const tretjina = Math.floor(lapi.length / 3)
-    const prvaHR = lapi.slice(0, tretjina).filter(l => l.povprecni_hr).reduce((s, l, _, a) => s + l.povprecni_hr / a.length, 0)
-    const zadnjaHR = lapi.slice(-tretjina).filter(l => l.povprecni_hr).reduce((s, l, _, a) => s + l.povprecni_hr / a.length, 0)
-    cardiacDrift = Math.round(zadnjaHR - prvaHR)
+    const prvaLapi = lapi.slice(0, tretjina).filter(l => l.povprecni_hr)
+    const zadnjaLapi = lapi.slice(-tretjina).filter(l => l.povprecni_hr)
+    if (prvaLapi.length > 0 && zadnjaLapi.length > 0) {
+      const prvaHR = prvaLapi.reduce((s, l) => s + l.povprecni_hr, 0) / prvaLapi.length
+      const zadnjaHR = zadnjaLapi.reduce((s, l) => s + l.povprecni_hr, 0) / zadnjaLapi.length
+      cardiacDrift = Math.round(zadnjaHR - prvaHR)
+    }
     if (cardiacDrift > 20) driftOpis = 'zelo velik'
     else if (cardiacDrift > 12) driftOpis = 'velik'
     else if (cardiacDrift > 6) driftOpis = 'zmeren'
@@ -217,6 +221,7 @@ export function analizirajTek(zadnjiTek, lapsTeka, metrike, prehrana, workouts) 
     if (prvi3.length > 0 && zadnji3.length > 0) {
       const avgTempoZac = prvi3.reduce((s, l, _, a) => s + tempoStrToSec(l.povprecni_tempo) / a.length, 0)
       const avgTempoKon = zadnji3.reduce((s, l, _, a) => s + tempoStrToSec(l.povprecni_tempo) / a.length, 0)
+      // pozitivno = upad tempa (počasnejše), negativno = negativni split (pohitritev)
       tempoDegradacija = Math.round(avgTempoKon - avgTempoZac)
       if (tempoDegradacija > 30) tempoDegOpis = 'velik padec tempa'
       else if (tempoDegradacija > 15) tempoDegOpis = 'zmeren padec tempa'
@@ -312,12 +317,25 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
   if (teki.length === 0) return null
 
   const today = new Date()
-  const raceDate = new Date('2026-10-17')
+  const raceDate = new Date(RACE_DATE)
 
-  // 1. Riegel sidro — polmaraton 1:47:00 (oktober 2025)
-  // Eksponent 1.10: kalibriran za prvič + manjšo pripravljenost
-  const hmSec = 6420
-  const riegelCas = Math.round(hmSec * Math.pow(42195 / 21097.5, RIEGEL_EXP))
+  // 1. Riegel sidro — dinamično iz najboljše tekme ≥ 18 km iz workouts
+  // Fallback: polmaraton 1:47:00 (oktober 2025)
+  const raceTeki = workouts
+    .filter(w => isTek(w) && w.razdalja_km >= 18 && w.trajanje_min > 0)
+    .sort((a, b) => {
+      const paceA = a.trajanje_min / a.razdalja_km
+      const paceB = b.trajanje_min / b.razdalja_km
+      return paceA - paceB  // najhitrejša tekma
+    })
+  let riegelDistM = 21097.5, riegelSec = 6420, riegelLabel = '1:47:00 HM (fallback)'
+  if (raceTeki.length > 0) {
+    const best = raceTeki[0]
+    riegelSec = Math.round(best.trajanje_min * 60)
+    riegelDistM = best.razdalja_km * 1000
+    riegelLabel = `${best.razdalja_km} km (${best.datum})`
+  }
+  const riegelCas = Math.round(riegelSec * Math.pow(42195 / riegelDistM, RIEGEL_EXP))
 
   // 2. EWMA VO2max z Garmin diskontom
   // Razpolovni čas 21 dni; novejši teki eksponentno pomembnejši
@@ -489,7 +507,7 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
   }
 
   return {
-    casFinal, casVo2, casHR, riegelCas, projectedVo2, projectedCasVo2, casTekma,
+    casFinal, casVo2, casHR, riegelCas, riegelLabel, projectedVo2, projectedCasVo2, casTekma,
     zanesljivost, zanesljivostRazlogi, tezaKorekcija, kmKorekcija, kmKorekcijaTekma, prvicKorekcija,
     driftKorekcija, recentDrift,
     trend, tempoNa155, vo2Uporabljen, ewmaVo2, vo2Slope, vo2ChartData,

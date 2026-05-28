@@ -1,7 +1,7 @@
 import React from 'react'
-import { PLAN, PLAN_TRENINGI, TODAY_STR, YESTERDAY_STR } from '../constants/plan'
+import { PLAN, PLAN_TRENINGI, TODAY_STR, YESTERDAY_STR, RACE_DATE } from '../constants/plan'
 import { izracunajLoad, izracunajPripravljenost } from '../utils/calculations'
-import { isTek, fmt, formaColor, formaLabel, pripravljenostColor, pripravljenostLabel, hrZona, hrZonaColor } from '../utils/helpers'
+import { isTek, fmt, formaColor, formaLabel, pripravljenostColor, pripravljenostLabel, hrZona, hrZonaColor, izracunajBMR } from '../utils/helpers'
 import { StatCard } from './StatCard'
 import { AlarmiPanel } from './AlarmiPanel'
 
@@ -78,7 +78,7 @@ export function TabPregled({ workouts, metrike, prehrana, laps, prehranaCilji = 
   const pripravljenost = izracunajPripravljenost(metrike, prehrana, workouts)
 
   // Dni do maratona
-  const dniDoMaratona = Math.ceil((new Date('2026-10-17') - new Date()) / (1000 * 60 * 60 * 24))
+  const dniDoMaratona = Math.ceil((new Date(RACE_DATE) - new Date()) / (1000 * 60 * 60 * 24))
 
   // Napoved maratona
   const predCas = predikcija?.casFinal
@@ -136,7 +136,7 @@ export function TabPregled({ workouts, metrike, prehrana, laps, prehranaCilji = 
   const vM = metrike.find(m => m.datum === zadnjiMfpDatum) || {}
   const vW = workouts.filter(w => w.datum === zadnjiMfpDatum)
   const trainKcal = vW.reduce((s, w) => s + (w.kalorije || 0), 0)
-  const skupajPorabljene = vM.skupaj_kcal || ((vM.bmr_kcal || 1946) + trainKcal)
+  const skupajPorabljene = vM.skupaj_kcal || ((vM.bmr_kcal || izracunajBMR(zadnjaTeza)) + trainKcal)
   const zauziteKcal = vP.kalorije_skupaj || 0
   const deficit = zauziteKcal - skupajPorabljene
 
@@ -145,7 +145,7 @@ export function TabPregled({ workouts, metrike, prehrana, laps, prehranaCilji = 
   const avgDeficit7 = z7.length > 0 ? Math.round(z7.reduce((s, p) => {
     const wKcal = workouts.filter(w2 => w2.datum === p.datum).reduce((s2, w2) => s2 + (w2.kalorije || 0), 0)
     const mD = metrike.find(m2 => m2.datum === p.datum) || {}
-    return s + p.kalorije_skupaj - (mD.skupaj_kcal || ((mD.bmr_kcal || 1946) + wKcal))
+    return s + p.kalorije_skupaj - (mD.skupaj_kcal || ((mD.bmr_kcal || izracunajBMR(zadnjaTeza)) + wKcal))
   }, 0) / z7.length) : null
 
   // Cilji za makre (iz prehranaCilji ali vP)

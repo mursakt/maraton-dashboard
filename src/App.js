@@ -33,7 +33,7 @@ export default function App() {
           supabase.from('laps').select('*').order('datum',{ascending:false}).limit(500),
           supabase.from('prehrana_cilji').select('*').order('datum',{ascending:false}).limit(60),
         ])
-        if(w.error)throw w.error; if(m.error)throw m.error; if(p.error)throw p.error
+        if(w.error)throw w.error; if(m.error)throw m.error; if(p.error)throw p.error; if(l.error)throw l.error; if(pc.error)throw pc.error
         setWorkouts(w.data||[]); setMetrike(m.data||[]); setPrehrana(p.data||[]); setLaps(l.data||[]); setPrehranaCilji(pc.data||[])
       } catch(e){setError(e.message)} finally{setLoading(false)}
   }, [])

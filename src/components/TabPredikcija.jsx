@@ -13,7 +13,7 @@ function diffLabel(sec) {
 export function TabPredikcija({ predikcija, workouts, laps = [], metrike = [] }) {
   if (!predikcija) return <div className="empty">Ni dovolj podatkov za predikcijo</div>
   const {
-    casFinal, casVo2, casHR, riegelCas, projectedVo2, projectedCasVo2, casTekma,
+    casFinal, casVo2, casHR, riegelCas, riegelLabel, projectedVo2, projectedCasVo2, casTekma,
     zanesljivost, zanesljivostRazlogi, tezaKorekcija, kmKorekcija, prvicKorekcija,
     driftKorekcija, recentDrift,
     trend, tempoNa155, vo2Uporabljen, ewmaVo2, vo2Slope, vo2ChartData,
@@ -40,7 +40,7 @@ export function TabPredikcija({ predikcija, workouts, laps = [], metrike = [] })
       const avgTempo = aerobic.reduce((s, l) => s + tempoStrToSec(l.povprecni_tempo), 0) / aerobic.length
       const avgHR = aerobic.reduce((s, l) => s + l.povprecni_hr, 0) / aerobic.length
       if (!avgTempo || avgTempo <= 0) return
-      const normalized = Math.round(avgTempo + (avgHR - 150) * 3)
+      const normalized = Math.round(avgTempo + (avgHR - 150) * 4)
       result.push({ datum, tempoSec: normalized, hrAvg: Math.round(avgHR), label: datum.slice(5) })
     })
     result.sort((a, b) => a.datum.localeCompare(b.datum))
@@ -67,7 +67,7 @@ export function TabPredikcija({ predikcija, workouts, laps = [], metrike = [] })
   const metodeDanes = [
     casVo2 && { label: 'VO2max EWMA', cas: casVo2, w: '35%', color: '#a78bfa', opis: `${fmt(ewmaVo2, 1)} ml/kg/min (eksponentno uteženo)` },
     casHR && { label: 'HR-tempo WLS', cas: casHR, w: '35%', color: '#3b82f6', opis: 'utežena regresija (trajanje × recency)' },
-    { label: 'Riegel (polmaraton)', cas: riegelCas, w: '20%', color: '#22c55e', opis: '1:47:00 → Riegel ekstrapolacija' },
+    { label: 'Riegel (tekma)', cas: riegelCas, w: '20%', color: '#22c55e', opis: riegelLabel || '1:47:00 HM → Riegel ekstrapolacija' },
     projectedCasVo2 && { label: 'VO2max projekcija', cas: projectedCasVo2, w: '10%', color: '#f97316', opis: `${fmt(projectedVo2, 1)} ml/kg/min pričakovano 17.10.` },
   ].filter(Boolean)
 
@@ -242,7 +242,7 @@ export function TabPredikcija({ predikcija, workouts, laps = [], metrike = [] })
           </LineChart>
         </ResponsiveContainer>
         <div style={{ fontSize: 11, color: '#334155', marginTop: 6, fontFamily: 'DM Mono' }}>
-          Nižje = hitrejše · Normalizirano na HR 150 bpm (~3 s/km/bpm korekcija) · Prikazuje aerobno formo neodvisno od tempa
+          Nižje = hitrejše · Normalizirano na HR 150 bpm (~4 s/km/bpm korekcija) · Prikazuje aerobno formo neodvisno od tempa
         </div>
       </div>
     )}

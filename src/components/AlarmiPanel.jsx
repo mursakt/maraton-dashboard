@@ -1,7 +1,7 @@
 import React from 'react'
 import { CILJI, PLAN, getCurrentTeden } from '../constants/plan'
 import { izracunajLoad } from '../utils/calculations'
-import { isTek } from '../utils/helpers'
+import { isTek, izracunajBMR } from '../utils/helpers'
 
 function avg(arr, key) {
   const v = arr.map(m => typeof key === 'function' ? key(m) : m[key]).filter(x => x != null && x > 0)
@@ -159,7 +159,7 @@ export function AlarmiPanel({ workouts, metrike, prehrana, predikcija }) {
       const netBalance = z7.reduce((s, p) => {
         const wKcal = workouts.filter(w => w.datum === p.datum).reduce((s2, w) => s2 + (w.kalorije || 0), 0)
         const mD = metrike.find(m => m.datum === p.datum) || {}
-        const burned = mD.skupaj_kcal || ((mD.bmr_kcal || 1946) + wKcal)
+        const burned = mD.skupaj_kcal || ((mD.bmr_kcal || izracunajBMR(tezaNow)) + wKcal)
         return s + p.kalorije_skupaj - burned
       }, 0) / z7.length
       if (netBalance < -900)

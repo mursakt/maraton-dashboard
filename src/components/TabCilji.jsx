@@ -1,6 +1,6 @@
 import React from 'react'
 import { supabase } from '../supabase'
-import { TODAY, TODAY_STR, PLAN, PLAN_TRENINGI, getCurrentTeden } from '../constants/plan'
+import { TODAY, TODAY_STR, PLAN, PLAN_TRENINGI, getCurrentTeden, RACE_DATE } from '../constants/plan'
 import { izracunajLoad, izracunajFormo } from '../utils/calculations'
 
 const TIPI_DNI = {
@@ -16,8 +16,9 @@ function izracunajAutoCilje(workouts, metrike, prehrana) {
 
   const zadnjeMetrike = metrike[0] || {}
   const tezaKg = metrike.find(m => m.teza_kg)?.teza_kg || 95
+  // Mifflin-St Jeor z dejansko težo; višina/starost sta relativno stabilni konstanti
   const bmr = metrike.find(m => m.bmr_kcal)?.bmr_kcal
-    || Math.round(10 * tezaKg + 6.25 * 175 - 5 * 35 + 5)
+    || Math.round(10 * tezaKg + 6.25 * 178 - 5 * 31 + 5)
 
   // ── 7d povprečje dejanskega vnosa (osnova izračuna) ─────────────────
   const z7 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 7)
@@ -40,8 +41,10 @@ function izracunajAutoCilje(workouts, metrike, prehrana) {
     : Math.round(bmr * 1.25)
 
   // ── Trend telesne teže (zadnji 2 tedna) ─────────────────────────────
+  const cutoff60d = new Date(TODAY); cutoff60d.setDate(cutoff60d.getDate() - 60)
+  const cutoff60dStr = cutoff60d.toISOString().slice(0, 10)
   const tezeData = [...metrike]
-    .filter(m => m.teza_kg && m.datum >= '2026-05-15')
+    .filter(m => m.teza_kg && m.datum >= cutoff60dStr)
     .sort((a, b) => b.datum.localeCompare(a.datum))
   let weeklyLossRate = null  // kg/teden, pozitivno = hujšanje
   if (tezeData.length >= 4) {

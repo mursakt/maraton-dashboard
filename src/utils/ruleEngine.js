@@ -1,6 +1,6 @@
 import { PLAN_TRENINGI } from '../constants/plan'
 import { tempoStrToSec, secToTempoStr } from './tempo'
-import { isTek } from './helpers'
+import { isTek, izracunajBMR } from './helpers'
 import { izracunajLoad } from './calculations'
 
 function avg(arr) {
@@ -165,7 +165,7 @@ export function runRuleEngine({ zadnjiTek, lapsTeka = [], metrike = [], prehrana
   const workoutKcalVceraj = workouts
     .filter(w => w.datum === danPred)
     .reduce((s, w) => s + (w.kalorije || 0), 0)
-  const porabljeneVceraj = metVceraj.skupaj_kcal || ((metVceraj.bmr_kcal || 1946) + workoutKcalVceraj)
+  const porabljeneVceraj = metVceraj.skupaj_kcal || ((metVceraj.bmr_kcal || izracunajBMR(tezaKg)) + workoutKcalVceraj)
   if (prehranaVceraj.kalorije_skupaj) {
     const deficit = Math.round(prehranaVceraj.kalorije_skupaj - porabljeneVceraj)
     if (deficit < -700)

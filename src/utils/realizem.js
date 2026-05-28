@@ -1,6 +1,6 @@
 import { isTek } from './helpers'
 import { tempoStrToSec, secToTempoStr } from './tempo'
-import { getCurrentTeden, PLAN, PLAN_TRENINGI } from '../constants/plan'
+import { PLAN, PLAN_TRENINGI, getCurrentTeden } from '../constants/plan'
 
 // Neodvisna, unbiased ocena realnosti predikcije.
 // Ne zaupa nobeni parametru modela — gleda samo surove podatke.
@@ -19,13 +19,14 @@ export function oceniRealizem(predikcija, workouts, metrike, laps = []) {
   // Vzamemo lape pri HR 148–165 bpm in normaliziramo tempo na 160 bpm
   // s Fittsovim modelom: vsak bpm razlike ≈ 4 s/km.
   // Primerjamo normaliziran tempo (aerobna baza) z napovejanim maratonskim.
-  const aerobniLapi = laps.filter(l =>
-    l.povprecni_hr && l.povprecni_hr >= 148 && l.povprecni_hr <= 165 &&
-    l.tempo_sek && l.tempo_sek > 0 && l.tempo_sek < 600
-  ).slice(0, 40)
+  const aerobniLapi = laps.filter(l => {
+    const ts = tempoStrToSec(l.povprecni_tempo)
+    return l.povprecni_hr && l.povprecni_hr >= 148 && l.povprecni_hr <= 165 &&
+      ts && ts > 0 && ts < 600
+  }).slice(0, 40)
 
   if (aerobniLapi.length >= 5) {
-    const normirani = aerobniLapi.map(l => l.tempo_sek + (l.povprecni_hr - 160) * 4)
+    const normirani = aerobniLapi.map(l => tempoStrToSec(l.povprecni_tempo) + (l.povprecni_hr - 160) * 4)
     const avgNorm = normirani.reduce((s, v) => s + v, 0) / normirani.length
     const diff = avgNorm - maraTempoSec
     const diffPct = (diff / maraTempoSec) * 100
