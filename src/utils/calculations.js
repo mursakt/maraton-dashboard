@@ -334,7 +334,7 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
     ewmaVo2 = (weighted.reduce((s, x) => s + x.vo2 * x.wt, 0) / sumWt) * GARMIN_VO2_DISCOUNT
     vo2Uporabljen = ewmaVo2
     const vVO2max = 29.54 + 5.000663 * ewmaVo2 - 0.007546 * ewmaVo2 * ewmaVo2
-    casVo2 = (1000 / (vVO2max * MARA_VO2_FRACTION) / 60) * 42.195 * 60
+    casVo2 = (1000 / (vVO2max * MARA_VO2_FRACTION)) * 42.195 * 60
   }
 
   // 3. Linearna projekcija VO2max do 17.10.2026 (ista frakcija)
@@ -355,7 +355,7 @@ export function izracunajPredikcijo(workouts, metrike, laps = []) {
       if (ewmaVo2) { rawProj = Math.min(rawProj, ewmaVo2 + 5); rawProj = Math.max(rawProj, ewmaVo2 - 1) }
       projectedVo2 = rawProj
       const vVP = 29.54 + 5.000663 * projectedVo2 - 0.007546 * projectedVo2 * projectedVo2
-      projectedCasVo2 = (1000 / (vVP * MARA_VO2_FRACTION) / 60) * 42.195 * 60
+      projectedCasVo2 = (1000 / (vVP * MARA_VO2_FRACTION)) * 42.195 * 60
       const dToday = (today - new Date(sorted[0].datum)) / 86400000
       vo2ChartData = [
         ...pts.map(p => ({ datum: p.datum.slice(5), vo2: Math.round(p.y * 10) / 10, trend: Math.round((b0 + vo2Slope * p.x) * 10) / 10 })),
