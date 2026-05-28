@@ -14,6 +14,7 @@ export function TabPredikcija({ predikcija, workouts, laps = [] }) {
   const {
     casFinal, casVo2, casHR, riegelCas, projectedVo2, projectedCasVo2, casTekma,
     zanesljivost, zanesljivostRazlogi, tezaKorekcija, kmKorekcija, prvicKorekcija,
+    driftKorekcija, recentDrift,
     trend, tempoNa155, vo2Uporabljen, ewmaVo2, vo2Slope, vo2ChartData,
     maxKm, steviloTekov, zadnjaTeza
   } = predikcija
@@ -117,17 +118,23 @@ export function TabPredikcija({ predikcija, workouts, laps = [] }) {
             <div style={{ fontSize: 10, color: '#334155', fontFamily: 'DM Mono', marginTop: 2 }}>{m.opis}</div>
           </div>
         ))}
-        <div style={{ borderTop: '1px solid #2d3748', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 11, color: '#475569', fontFamily: 'DM Mono' }}>Korekcija teža</div>
-            <div style={{ fontSize: 11, color: '#475569', fontFamily: 'DM Mono', marginTop: 2 }}>Buffer (prvi maraton)</div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, fontFamily: 'DM Mono', color: tezaKorekcija < 0 ? '#22c55e' : tezaKorekcija > 0 ? '#f97316' : '#475569' }}>
-              {tezaKorekcija === 0 ? '0' : tezaKorekcija < 0 ? `-${secToHMS(Math.abs(tezaKorekcija)).slice(1)}` : `+${secToHMS(tezaKorekcija).slice(1)}`}
+        <div style={{ borderTop: '1px solid #2d3748', paddingTop: 8 }}>
+          {[
+            { label: 'Korekcija teža', val: tezaKorekcija, opis: zadnjaTeza ? `${fmt(zadnjaTeza, 1)} kg (baza 97 kg)` : '—' },
+            { label: 'Korekcija km/teden', val: kmKorekcija, opis: `max ${fmt(maxKm, 0)} km/teden` },
+            { label: 'Srčni drift', val: driftKorekcija, opis: recentDrift !== null ? `${recentDrift > 0 ? '+' : ''}${recentDrift} bpm (zadnji dolgi tek)` : 'ni lap podatkov' },
+            { label: 'Buffer (prvi maraton)', val: prvicKorekcija, opis: 'pacing, wall, glikogen, psihika' },
+          ].map(({ label, val, opis }, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#475569', fontFamily: 'DM Mono' }}>{label}</div>
+                <div style={{ fontSize: 10, color: '#1e3a5f', fontFamily: 'DM Mono' }}>{opis}</div>
+              </div>
+              <div style={{ fontSize: 11, fontFamily: 'DM Mono', color: val < 0 ? '#22c55e' : val > 0 ? '#f97316' : '#475569', minWidth: 60, textAlign: 'right' }}>
+                {val === 0 ? '0' : val < 0 ? `-${secToHMS(Math.abs(val)).slice(1)}` : `+${secToHMS(val).slice(1)}`}
+              </div>
             </div>
-            <div style={{ fontSize: 11, fontFamily: 'DM Mono', color: '#f97316', marginTop: 2 }}>+{secToHMS(prvicKorekcija).slice(1)}</div>
-          </div>
+          ))}
         </div>
       </div>
 
@@ -232,6 +239,6 @@ export function TabPredikcija({ predikcija, workouts, laps = [] }) {
       )
     })()}
 
-    <div className="alert info">ℹ️ Predikcija: VO2max EWMA 35% + HR-tempo WLS 35% + Riegel 1:47 20% + VO2max projekcija 10%. Zanesljivost raste z vsakim tekom.</div>
+    <div className="alert info">ℹ️ Model: VO2max EWMA 35% + HR-tempo WLS 30% + Riegel HM 25% + VO2max projekcija 10% · Kalibrirano za prvič: frakcija vVO2max 72% (ne 77%), Riegel exp 1.10 (ne 1.06), Garmin diskont −5%, buffer +22 min · Zanesljivost raste z vsakim tekom in dolžino priprav.</div>
   </>)
 }

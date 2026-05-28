@@ -49,7 +49,7 @@ export default function App() {
   const faza = planTeden?.faza||'F1'
   const zadnjeMetrike = metrike[0]||{}
   const formaScore = izracunajFormo(zadnjeMetrike.hrv, zadnjeMetrike.spanje_h, zadnjeMetrike.stres_povprecje, workouts)
-  const predikcija = izracunajPredikcijo(workouts, metrike)
+  const predikcija = izracunajPredikcijo(workouts, metrike, laps)
 
   return (
     <div className="app">
