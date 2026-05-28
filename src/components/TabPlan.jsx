@@ -7,9 +7,11 @@ const TIP_COLOR = { A: '#f97316', B: '#3b82f6', C: '#a78bfa' }
 function tipIzOpis(opis = '') {
   const o = opis.toLowerCase()
   if (o.includes('maraton')) return 'race'
+  if (o.includes('polmaraton')) return 'race'
   if (o.includes('race pace')) return 'racepace'
   if (o.includes('interval')) return 'intervals'
   if (o.includes('hribč')) return 'hills'
+  if (o.includes('strides') || o.includes('razponi')) return 'strides'
   if (o.includes('dolgi tek')) return 'long'
   return 'easy'
 }
@@ -21,6 +23,7 @@ const TIP_BADGE = {
   hills:     { label: 'Hribčki',    color: '#eab308' },
   racepace:  { label: 'Race Pace',  color: '#ef4444' },
   race:      { label: 'Tekma',      color: '#22c55e' },
+  strides:   { label: 'Strides',    color: '#06b6d4' },
 }
 
 export function TabPlan({currentTeden, workouts=[]}) {
@@ -45,8 +48,8 @@ export function TabPlan({currentTeden, workouts=[]}) {
 
   return(
     <div className="card">
-      <h3>24-tedenski program</h3>
-      <div style={{maxHeight:620,overflowY:'auto',marginTop:8}}>
+      <h3>26-tedenski program</h3>
+      <div style={{maxHeight:720,overflowY:'auto',marginTop:8}}>
         {PLAN.map(p => {
           const actKm = Math.round((actKmByWeek[p.datum] || 0) * 10) / 10
           const done = actKm > 0
@@ -105,6 +108,11 @@ export function TabPlan({currentTeden, workouts=[]}) {
                                 </span>
                                 <span style={{fontSize:12,color:'#e2e8f0',fontWeight:500}}>{t.opis}</span>
                               </div>
+                              {t.razlaga && (
+                                <div style={{fontSize:11,color:'#64748b',marginTop:2,marginBottom:4,lineHeight:1.5,fontStyle:'italic'}}>
+                                  {t.razlaga}
+                                </div>
+                              )}
                               <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
                                 <span style={{fontSize:11,fontFamily:'DM Mono',color:'#475569'}}>{t.datum.slice(5)}</span>
                                 <span style={{fontSize:11,fontFamily:'DM Mono',color:'#64748b'}}>{t.km} km</span>
