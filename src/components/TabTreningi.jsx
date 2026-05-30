@@ -103,6 +103,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
   const vo2Diff = zadnjiVo2 && starejsiVo2 ? Math.round((zadnjiVo2 - starejsiVo2)*10)/10 : null
 
   const [compWorkoutId, setCompWorkoutId] = React.useState(null)
+  const [bgWorkoutId, setBgWorkoutId] = React.useState(null)
   const atlCtlTrend = React.useMemo(() => {
     const loadMap = {}
     workouts.forEach(w => {
@@ -176,17 +177,24 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               pace: parsePace(l.povprecni_tempo),
             })).filter(d => d.hr && d.pace)
 
+            const bgLaps = bgWorkoutId
+              ? laps.filter(l => String(l.garmin_activity_id) === String(bgWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
+              : null
+            const bgChartData = bgLaps
+              ? bgLaps.map(l => ({ hr: l.povprecni_hr||null, pace: parsePace(l.povprecni_tempo) })).filter(d => d.hr && d.pace)
+              : chartData
+
             const compLaps = compWorkoutId
               ? laps.filter(l => String(l.garmin_activity_id) === String(compWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
               : []
             const compChartData = compLaps
               .map(l => ({ hr: l.povprecni_hr||null, pace: parsePace(l.povprecni_tempo) }))
               .filter(d => d.hr && d.pace)
-            const maxLen = Math.max(chartData.length, compChartData.length)
+            const maxLen = Math.max(bgChartData.length, compChartData.length)
             const mergedData = Array.from({length: maxLen}, (_, i) => ({
               km: i+1,
-              hr: chartData[i]?.hr ?? null,
-              pace: chartData[i]?.pace ?? null,
+              hr: bgChartData[i]?.hr ?? null,
+              pace: bgChartData[i]?.pace ?? null,
               compHr: compChartData[i]?.hr ?? null,
               compPace: compChartData[i]?.pace ?? null,
             }))
@@ -219,7 +227,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               : decouplingPct < 10 ? '#eab308' : '#ef4444'
             const dcLabel = decouplingPct === null ? '' : decouplingPct < 5 ? '✓ aerobno stabilno' : decouplingPct < 10 ? '⚠ blag drift' : '⚠ cardiac drift'
 
-            const allPaces = [...chartData.map(d=>d.pace), ...compChartData.map(d=>d.pace)].filter(Boolean)
+            const allPaces = [...bgChartData.map(d=>d.pace), ...compChartData.map(d=>d.pace)].filter(Boolean)
             const paceMin = allPaces.length ? Math.min(...allPaces) - 10 : 0
             const paceMax = allPaces.length ? Math.max(...allPaces) + 10 : 400
 
@@ -275,10 +283,12 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                           const cpm = d.compPace ? Math.floor(d.compPace/60) : null
                           const cps = d.compPace ? String(d.compPace%60).padStart(2,'0') : null
                           const compW = compWorkoutId ? workouts.find(w => String(w.garmin_activity_id) === String(compWorkoutId)) : null
+                          const bgW = bgWorkoutId ? workouts.find(w => String(w.garmin_activity_id) === String(bgWorkoutId)) : null
+                          const bgLabel = bgW ? bgW.naziv : a.tek.naziv
                           return (
                             <div style={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
                               <div style={{color:'#64748b',marginBottom:4}}>{label}. km</div>
-                              {compWorkoutId && <div style={{color:'#94a3b8',fontSize:10,marginBottom:4}}>{a.tek.naziv}</div>}
+                              {compWorkoutId && <div style={{color:'#94a3b8',fontSize:10,marginBottom:4}}>{bgLabel}</div>}
                               <div style={{color:'#f97316',opacity: compWorkoutId ? 0.5 : 1}}>HR: {d.hr ?? '—'} bpm</div>
                               <div style={{color:'#3b82f6',opacity: compWorkoutId ? 0.5 : 1}}>Pace: {pm !== null ? `${pm}:${ps}` : '—'} /km</div>
                               {compWorkoutId && (d.compHr || d.compPace) && (
@@ -313,24 +323,49 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
             )
           })()}
           <div style={{marginBottom:14}}>
-            <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Primerjaj s preteklim tekom</div>
-            <select
-              value={compWorkoutId || ''}
-              onChange={e => setCompWorkoutId(e.target.value || null)}
-              style={{background:'#1e2433',border:'1px solid #334155',borderRadius:6,color:'#94a3b8',fontSize:12,padding:'6px 12px',fontFamily:'DM Mono',cursor:'pointer',width:'100%',maxWidth:440}}
-            >
-              <option value="">— Izberi tek za primerjavo —</option>
-              {workouts
-                .filter(w => isTek(w) && w.datum < a.tek.datum && w.razdalja_km > 0)
-                .sort((x,y) => y.datum.localeCompare(x.datum))
-                .slice(0, 25)
-                .map(w => (
-                  <option key={w.garmin_activity_id || w.id} value={w.garmin_activity_id}>
-                    {w.datum} — {w.naziv} ({fmt(w.razdalja_km)} km)
-                  </option>
-                ))
-              }
-            </select>
+            <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Primerjava tekov</div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:200}}>
+                <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginBottom:4}}>Ozadje</div>
+                <select
+                  value={bgWorkoutId || ''}
+                  onChange={e => setBgWorkoutId(e.target.value || null)}
+                  style={{background:'#1e2433',border:'1px solid #334155',borderRadius:6,color:'#94a3b8',fontSize:12,padding:'6px 12px',fontFamily:'DM Mono',cursor:'pointer',width:'100%'}}
+                >
+                  <option value="">{a.tek.datum} — {a.tek.naziv} (zadnji)</option>
+                  {workouts
+                    .filter(w => isTek(w) && w.razdalja_km > 0 && w.garmin_activity_id !== a.tek.garmin_activity_id)
+                    .sort((x,y) => y.datum.localeCompare(x.datum))
+                    .slice(0, 25)
+                    .map(w => (
+                      <option key={w.garmin_activity_id || w.id} value={w.garmin_activity_id}>
+                        {w.datum} — {w.naziv} ({fmt(w.razdalja_km)} km)
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+              <div style={{flex:1,minWidth:200}}>
+                <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginBottom:4}}>Primerjava</div>
+                <select
+                  value={compWorkoutId || ''}
+                  onChange={e => setCompWorkoutId(e.target.value || null)}
+                  style={{background:'#1e2433',border:'1px solid #334155',borderRadius:6,color:'#94a3b8',fontSize:12,padding:'6px 12px',fontFamily:'DM Mono',cursor:'pointer',width:'100%'}}
+                >
+                  <option value="">— Izberi tek —</option>
+                  {workouts
+                    .filter(w => isTek(w) && w.razdalja_km > 0 && w.garmin_activity_id !== a.tek.garmin_activity_id)
+                    .sort((x,y) => y.datum.localeCompare(x.datum))
+                    .slice(0, 25)
+                    .map(w => (
+                      <option key={w.garmin_activity_id || w.id} value={w.garmin_activity_id}>
+                        {w.datum} — {w.naziv} ({fmt(w.razdalja_km)} km)
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+            </div>
           </div>
           {findings.length > 0 && (
             <div style={{borderTop:'1px solid #1e2433',paddingTop:14}}>
