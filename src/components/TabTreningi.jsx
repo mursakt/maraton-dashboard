@@ -65,12 +65,6 @@ const CAT_LABEL = {
   load: 'Obremenitev', primerjava: 'Primerjava',
 }
 
-const OCENE = [
-  { key: 'lahko',          label: 'Lahko',          color: '#22c55e' },
-  { key: 'nevtralno',      label: 'Nevtralno',      color: '#3b82f6' },
-  { key: 'zmerno_tezko',   label: 'Zmerno težko',   color: '#eab308' },
-  { key: 'katastrofalno',  label: 'Katastrofalno',  color: '#ef4444' },
-]
 
 export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefresh}){
   const teki=workouts.filter(w=>isTek(w)&&w.razdalja_km>0)
@@ -108,13 +102,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
   const starejsiVo2 = vo2Sorted.find(w => w.datum <= prejsnjiTeden)?.vo2max || null
   const vo2Diff = zadnjiVo2 && starejsiVo2 ? Math.round((zadnjiVo2 - starejsiVo2)*10)/10 : null
 
-  const [ocenaMap, setOcenaMap] = React.useState({})
-  const getOcena = (workout) => ocenaMap[workout.id] ?? workout.subjektivna_ocena
-  const saveOcena = async (workoutId, ocena) => {
-    setOcenaMap(prev => ({ ...prev, [workoutId]: ocena }))
-    await supabase.from('workouts').update({ subjektivna_ocena: ocena }).eq('id', workoutId)
-    if (onRefresh) onRefresh()
-  }
+  const [compWorkoutId, setCompWorkoutId] = React.useState(null)
   const atlCtlTrend = React.useMemo(() => {
     const loadMap = {}
     workouts.forEach(w => {
@@ -188,6 +176,21 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               pace: parsePace(l.povprecni_tempo),
             })).filter(d => d.hr && d.pace)
 
+            const compLaps = compWorkoutId
+              ? laps.filter(l => String(l.garmin_activity_id) === String(compWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
+              : []
+            const compChartData = compLaps
+              .map(l => ({ hr: l.povprecni_hr||null, pace: parsePace(l.povprecni_tempo) }))
+              .filter(d => d.hr && d.pace)
+            const maxLen = Math.max(chartData.length, compChartData.length)
+            const mergedData = Array.from({length: maxLen}, (_, i) => ({
+              km: i+1,
+              hr: chartData[i]?.hr ?? null,
+              pace: chartData[i]?.pace ?? null,
+              compHr: compChartData[i]?.hr ?? null,
+              compPace: compChartData[i]?.pace ?? null,
+            }))
+
             // Pa:HR aerobni decoupling
             const decouplingPct = calcDecoupling(chartData.map(d => ({
               povprecni_hr: d.hr,
@@ -216,8 +219,9 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               : decouplingPct < 10 ? '#eab308' : '#ef4444'
             const dcLabel = decouplingPct === null ? '' : decouplingPct < 5 ? '✓ aerobno stabilno' : decouplingPct < 10 ? '⚠ blag drift' : '⚠ cardiac drift'
 
-            const paceMin = chartData.length ? Math.min(...chartData.map(d=>d.pace)) - 10 : 0
-            const paceMax = chartData.length ? Math.max(...chartData.map(d=>d.pace)) + 10 : 400
+            const allPaces = [...chartData.map(d=>d.pace), ...compChartData.map(d=>d.pace)].filter(Boolean)
+            const paceMin = allPaces.length ? Math.min(...allPaces) - 10 : 0
+            const paceMax = allPaces.length ? Math.max(...allPaces) + 10 : 400
 
             return (
               <div style={{marginBottom:14}}>
@@ -256,7 +260,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                 )}
                 {chartData.length >= 2 ? (
                   <ResponsiveContainer width="100%" height={200}>
-                    <ComposedChart data={chartData} margin={{top:4,right:8,left:4,bottom:0}}>
+                    <ComposedChart data={mergedData} margin={{top:4,right:8,left:4,bottom:0}}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
                       <XAxis dataKey="km" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} label={{value:'km',position:'insideBottomRight',offset:-2,fontSize:10,fill:'#475569'}}/>
                       <YAxis yAxisId="hr" domain={['auto','auto']} tick={{fontSize:10,fill:'#f97316',fontFamily:'DM Mono'}} width={32}/>
@@ -266,18 +270,32 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                           if (!active || !payload?.length) return null
                           const d = payload[0]?.payload
                           if (!d) return null
-                          const pm = Math.floor(d.pace/60), ps = String(d.pace%60).padStart(2,'0')
+                          const pm = d.pace ? Math.floor(d.pace/60) : null
+                          const ps = d.pace ? String(d.pace%60).padStart(2,'0') : null
+                          const cpm = d.compPace ? Math.floor(d.compPace/60) : null
+                          const cps = d.compPace ? String(d.compPace%60).padStart(2,'0') : null
+                          const compW = compWorkoutId ? workouts.find(w => String(w.garmin_activity_id) === String(compWorkoutId)) : null
                           return (
                             <div style={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
                               <div style={{color:'#64748b',marginBottom:4}}>{label}. km</div>
-                              <div style={{color:'#f97316'}}>HR: {d.hr} bpm</div>
-                              <div style={{color:'#3b82f6'}}>Pace: {pm}:{ps} /km</div>
+                              {compWorkoutId && <div style={{color:'#94a3b8',fontSize:10,marginBottom:4}}>{a.tek.naziv}</div>}
+                              <div style={{color:'#f97316',opacity: compWorkoutId ? 0.5 : 1}}>HR: {d.hr ?? '—'} bpm</div>
+                              <div style={{color:'#3b82f6',opacity: compWorkoutId ? 0.5 : 1}}>Pace: {pm !== null ? `${pm}:${ps}` : '—'} /km</div>
+                              {compWorkoutId && (d.compHr || d.compPace) && (
+                                <>
+                                  <div style={{color:'#94a3b8',fontSize:10,marginTop:6,marginBottom:2}}>{compW?.naziv || 'Primerjava'}</div>
+                                  {d.compHr && <div style={{color:'#f97316'}}>HR: {d.compHr} bpm</div>}
+                                  {d.compPace && <div style={{color:'#3b82f6'}}>Pace: {cpm}:{cps} /km</div>}
+                                </>
+                              )}
                             </div>
                           )
                         }}
                       />
-                      <Line yAxisId="hr" type="monotone" dataKey="hr" stroke="#f97316" strokeWidth={2} dot={{r:3,fill:'#f97316'}} name="HR"/>
-                      <Line yAxisId="pace" type="monotone" dataKey="pace" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}} name="Pace"/>
+                      <Line yAxisId="hr" type="monotone" dataKey="hr" stroke="#f97316" strokeWidth={compWorkoutId ? 1.5 : 2} strokeOpacity={compWorkoutId ? 0.3 : 1} dot={compWorkoutId ? false : {r:3,fill:'#f97316'}} name="HR"/>
+                      <Line yAxisId="pace" type="monotone" dataKey="pace" stroke="#3b82f6" strokeWidth={compWorkoutId ? 1.5 : 2} strokeOpacity={compWorkoutId ? 0.3 : 1} dot={compWorkoutId ? false : {r:3,fill:'#3b82f6'}} name="Pace"/>
+                      {compWorkoutId && <Line yAxisId="hr" type="monotone" dataKey="compHr" stroke="#f97316" strokeWidth={2} dot={{r:3,fill:'#f97316'}} name="HR (primerjava)" connectNulls={false}/>}
+                      {compWorkoutId && <Line yAxisId="pace" type="monotone" dataKey="compPace" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}} name="Pace (primerjava)" connectNulls={false}/>}
                     </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
@@ -295,16 +313,24 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
             )
           })()}
           <div style={{marginBottom:14}}>
-            <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Subjektivna ocena teka</div>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {OCENE.map(o => {
-                const current = getOcena(zadnjiTek)
-                const active = current === o.key
-                return (
-                  <button key={o.key} onClick={() => saveOcena(zadnjiTek.id, o.key)} style={{padding:'5px 14px',borderRadius:4,border:`1px solid ${active ? o.color : '#334155'}`,background:active ? o.color+'33' : '#1e2d3d',color:active ? o.color : '#94a3b8',fontSize:12,cursor:'pointer',fontFamily:'DM Mono'}}>{o.label}</button>
-                )
-              })}
-            </div>
+            <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Primerjaj s preteklim tekom</div>
+            <select
+              value={compWorkoutId || ''}
+              onChange={e => setCompWorkoutId(e.target.value || null)}
+              style={{background:'#1e2433',border:'1px solid #334155',borderRadius:6,color:'#94a3b8',fontSize:12,padding:'6px 12px',fontFamily:'DM Mono',cursor:'pointer',width:'100%',maxWidth:440}}
+            >
+              <option value="">— Izberi tek za primerjavo —</option>
+              {workouts
+                .filter(w => isTek(w) && w.datum < a.tek.datum && w.razdalja_km > 0)
+                .sort((x,y) => y.datum.localeCompare(x.datum))
+                .slice(0, 25)
+                .map(w => (
+                  <option key={w.garmin_activity_id || w.id} value={w.garmin_activity_id}>
+                    {w.datum} — {w.naziv} ({fmt(w.razdalja_km)} km)
+                  </option>
+                ))
+              }
+            </select>
           </div>
           {findings.length > 0 && (
             <div style={{borderTop:'1px solid #1e2433',paddingTop:14}}>

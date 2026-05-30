@@ -183,7 +183,7 @@ export function TabTelo({metrike, workouts=[]}){
       </div>
     </div>
 
-    <SleepConsistency />
+    <SleepConsistency metrike={metrike} />
 
   </>)
 }
