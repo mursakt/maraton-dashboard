@@ -1,5 +1,5 @@
 import React from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
+import { LineChart, Line, ComposedChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend, Area } from 'recharts'
 import { isTek, fmt } from '../utils/helpers'
 import { secToHMS, secToTempoStr, tempoStrToSec } from '../utils/tempo'
 import { oceniRealizem } from '../utils/realizem'
@@ -199,6 +199,170 @@ export function TabPredikcija({ predikcija, workouts, laps = [], metrike = [] })
         </div>
       </div>
     </div>
+
+    {/* Ensemble spread chart */}
+    {(() => {
+      const FRACTION = 0.76
+      const hmsShort = sec => {
+        const h = Math.floor(sec / 3600)
+        const m = Math.floor((sec % 3600) / 60)
+        return `${h}:${String(m).padStart(2, '0')}`
+      }
+
+      // Historical VO2max → marathon time
+      const histVo2 = vo2ChartData
+        .filter(d => d.vo2)
+        .map(d => {
+          const vv = 29.54 + 5.000663 * d.vo2 - 0.007546 * d.vo2 * d.vo2
+          return { datum: d.datum, vo2Cas: Math.round((1000 / (vv * FRACTION)) * 42.195 * 60) }
+        })
+
+      if (histVo2.length < 2 && !casHR && !riegelCas) return null
+
+      const allCurrentVals = [casVo2, casHR, riegelCas, projectedCasVo2].filter(Boolean)
+      const spreadMin = allCurrentVals.length ? Math.min(...allCurrentVals) : casFinal
+      const spreadMax = allCurrentVals.length ? Math.max(...allCurrentVals) : casFinal
+      const spreadMin_s = Math.round(spreadMin)
+      const spreadMax_s = Math.round(spreadMax)
+
+      const allVals = [...histVo2.map(d => d.vo2Cas), ...allCurrentVals, ciljSec]
+      const yMin = Math.min(...allVals) - 400
+      const yMax = Math.max(...allVals) + 400
+
+      const methods = [
+        casVo2        && { label: 'VO2max EWMA',    sec: Math.round(casVo2),         color: '#a78bfa', w: '35%' },
+        casHR         && { label: 'HR-tempo WLS',   sec: Math.round(casHR),           color: '#3b82f6', w: '30%' },
+        riegelCas     && { label: 'Riegel',         sec: Math.round(riegelCas),       color: '#22c55e', w: '25%' },
+        projectedCasVo2 && { label: 'Projekcija 17.10', sec: Math.round(projectedCasVo2), color: '#f97316', w: '10%' },
+        { label: 'Ensemble',     sec: Math.round(casFinal),        color: '#ffffff', w: '—', isFinal: true },
+      ].filter(Boolean)
+
+      // Snapshot scale: map seconds to % width
+      const snapMin = yMin, snapMax = yMax, snapRange = snapMax - snapMin
+      const toX = sec => Math.max(0, Math.min(100, ((sec - snapMin) / snapRange) * 100))
+      const targetX = toX(ciljSec)
+
+      return (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3>Ensemble — spread metod napovedovanja</h3>
+
+          {/* Snapshot: current state of all methods */}
+          <div style={{ position: 'relative', marginBottom: 24, paddingTop: 8 }}>
+            {/* Target line */}
+            <div style={{ position: 'absolute', left: `${targetX}%`, top: 0, bottom: 0, borderLeft: '2px dashed #eab308', zIndex: 2, pointerEvents: 'none' }}>
+              <span style={{ position: 'absolute', top: -18, left: 4, fontSize: 9, color: '#eab308', fontFamily: 'DM Mono', whiteSpace: 'nowrap' }}>3:45 cilj</span>
+            </div>
+
+            {/* Spread band */}
+            {allCurrentVals.length >= 2 && (
+              <div style={{
+                position: 'absolute',
+                left: `${toX(spreadMin_s)}%`,
+                width: `${toX(spreadMax_s) - toX(spreadMin_s)}%`,
+                top: 0, bottom: 0,
+                background: '#ffffff08',
+                border: '1px solid #ffffff11',
+                borderRadius: 4,
+                zIndex: 1,
+              }} />
+            )}
+
+            {/* Method dots */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 12 }}>
+              {methods.map((m, i) => (
+                <div key={i} style={{ position: 'relative', height: 20 }}>
+                  {/* Dot */}
+                  <div style={{
+                    position: 'absolute',
+                    left: `${toX(m.sec)}%`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: m.isFinal ? 14 : 10,
+                    height: m.isFinal ? 14 : 10,
+                    borderRadius: '50%',
+                    background: m.color,
+                    boxShadow: m.isFinal ? `0 0 8px ${m.color}` : 'none',
+                    border: m.isFinal ? '2px solid #ffffff55' : 'none',
+                    zIndex: 3,
+                  }} />
+                  {/* Label left */}
+                  <span style={{ position: 'absolute', right: `${100 - toX(m.sec) + 1.5}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: m.color, fontFamily: 'DM Mono', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    {m.label} ×{m.w}
+                  </span>
+                  {/* Time right */}
+                  <span style={{ position: 'absolute', left: `${toX(m.sec) + 1.5}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: m.color, fontFamily: 'DM Mono', whiteSpace: 'nowrap', fontWeight: m.isFinal ? 700 : 400 }}>
+                    {hmsShort(m.sec)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* X-axis ticks */}
+            <div style={{ position: 'relative', height: 20, marginTop: 8, borderTop: '1px solid #1e2433' }}>
+              {[3*3600+15*60, 3*3600+30*60, 3*3600+45*60, 4*3600, 4*3600+15*60].map(s => (
+                <div key={s} style={{ position: 'absolute', left: `${toX(s)}%`, transform: 'translateX(-50%)', fontSize: 9, color: '#334155', fontFamily: 'DM Mono', top: 4 }}>
+                  {hmsShort(s)}
+                </div>
+              ))}
+            </div>
+
+            {/* Spread label */}
+            {allCurrentVals.length >= 2 && (
+              <div style={{ fontSize: 10, color: '#475569', fontFamily: 'DM Mono', marginTop: 4 }}>
+                Razpon metod: <span style={{ color: '#94a3b8' }}>{hmsShort(spreadMin_s)} – {hmsShort(spreadMax_s)}</span>
+                &nbsp;·&nbsp; Negotovost: <span style={{ color: spreadMax_s - spreadMin_s > 1200 ? '#ef4444' : spreadMax_s - spreadMin_s > 600 ? '#eab308' : '#22c55e' }}>
+                  ±{Math.round((spreadMax_s - spreadMin_s) / 2 / 60)} min
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Historical VO2max prediction line */}
+          {histVo2.length >= 2 && (
+            <>
+              <div style={{ fontSize: 11, color: '#475569', fontFamily: 'DM Mono', marginBottom: 6 }}>
+                Zgodovinska napoved (VO2max metoda) + referenčne linije ostalih metod
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <ComposedChart data={histVo2} margin={{ top: 8, right: 60, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e2433" />
+                  <XAxis dataKey="datum" tick={{ fontSize: 10, fill: '#475569', fontFamily: 'DM Mono' }} interval="preserveStartEnd" />
+                  <YAxis
+                    domain={[yMin, yMax]}
+                    reversed={true}
+                    tick={{ fontSize: 10, fill: '#475569', fontFamily: 'DM Mono' }}
+                    width={42}
+                    tickFormatter={hmsShort}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null
+                      const d = payload[0]?.payload
+                      return (
+                        <div style={{ background: '#111827', border: '1px solid #1e2433', borderRadius: 8, padding: '8px 12px', fontSize: 11, fontFamily: 'DM Mono' }}>
+                          <div style={{ color: '#64748b', marginBottom: 4 }}>{label}</div>
+                          <div style={{ color: '#a78bfa' }}>VO2max napoved: {hmsShort(d.vo2Cas)}</div>
+                          {casHR && <div style={{ color: '#3b82f688' }}>HR-tempo: {hmsShort(Math.round(casHR))}</div>}
+                          {riegelCas && <div style={{ color: '#22c55e88' }}>Riegel: {hmsShort(Math.round(riegelCas))}</div>}
+                        </div>
+                      )
+                    }}
+                  />
+                  <ReferenceLine y={ciljSec} stroke="#eab308" strokeDasharray="4 2" strokeWidth={1.5} label={{ value: '3:45', position: 'right', fontSize: 9, fill: '#eab308' }} />
+                  {casHR && <ReferenceLine y={Math.round(casHR)} stroke="#3b82f6" strokeDasharray="3 3" strokeWidth={1} label={{ value: 'HR', position: 'right', fontSize: 9, fill: '#3b82f6' }} />}
+                  {riegelCas && <ReferenceLine y={Math.round(riegelCas)} stroke="#22c55e" strokeDasharray="3 3" strokeWidth={1} label={{ value: 'Riegel', position: 'right', fontSize: 9, fill: '#22c55e' }} />}
+                  {projectedCasVo2 && <ReferenceLine y={Math.round(projectedCasVo2)} stroke="#f97316" strokeDasharray="2 4" strokeWidth={1} label={{ value: '17.10', position: 'right', fontSize: 9, fill: '#f97316' }} />}
+                  <Line type="monotone" dataKey="vo2Cas" stroke="#a78bfa" strokeWidth={2} dot={{ r: 4, fill: '#a78bfa' }} name="VO2max napoved" />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <div style={{ fontSize: 10, color: '#334155', marginTop: 6, fontFamily: 'DM Mono' }}>
+                Y-os invertirana — hitrejši čas = višje · Linije: <span style={{ color: '#3b82f6' }}>HR-tempo</span> · <span style={{ color: '#22c55e' }}>Riegel</span> · <span style={{ color: '#f97316' }}>Projekcija 17.10</span>
+              </div>
+            </>
+          )}
+        </div>
+      )
+    })()}
 
     {/* VO2max trend + projekcija */}
     {vo2ChartData.length > 1 && (
