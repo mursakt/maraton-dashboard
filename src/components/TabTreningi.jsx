@@ -1,5 +1,5 @@
 import React from 'react'
-import { Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
+import { Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell } from 'recharts'
 import { TODAY, PLAN_TRENINGI } from '../constants/plan'
 import { izracunajLoad, analizirajTek } from '../utils/calculations'
 import { runRuleEngine } from '../utils/ruleEngine'
@@ -66,6 +66,9 @@ const CAT_LABEL = {
 }
 
 
+const PHASE_COLOR = { WARMUP:'#3b82f6', ACTIVE:'#f97316', RECOVERY:'#f97316', STRIDES:'#f97316', COOLDOWN:'#94a3b8', RUN:'#3b82f6' }
+const PHASE_LABEL = { WARMUP:'Easy', ACTIVE:'Strides', RECOVERY:'Strides', STRIDES:'Strides', COOLDOWN:'Cooldown', RUN:'Tek' }
+
 export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefresh}){
   const teki=workouts.filter(w=>isTek(w)&&w.razdalja_km>0)
   const tedniMap={}
@@ -104,6 +107,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
 
   const [compWorkoutId, setCompWorkoutId] = React.useState(null)
   const [bgWorkoutId, setBgWorkoutId] = React.useState(null)
+  const [activePhase, setActivePhase] = React.useState(null)
   const atlCtlTrend = React.useMemo(() => {
     const loadMap = {}
     workouts.forEach(w => {
@@ -171,7 +175,15 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               const parts = s.split(':').map(Number)
               return parts[0] * 60 + (parts[1] || 0)
             }
-            const chartData = a.lapi.map((l, i) => ({
+
+            const hasStructured = a.lapi.some(l => l.intensity_type)
+            const activeLapi   = a.lapi.filter(l => l.intensity_type === 'ACTIVE')
+            const recoveryLapi = a.lapi.filter(l => l.intensity_type === 'RECOVERY')
+            const easyLapi     = hasStructured
+              ? a.lapi.filter(l => l.intensity_type === 'WARMUP' || l.intensity_type === 'COOLDOWN')
+              : a.lapi
+
+            const chartData = easyLapi.map((l, i) => ({
               km: i + 1,
               hr: l.povprecni_hr || null,
               pace: parsePace(l.povprecni_tempo),
@@ -181,13 +193,14 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               ? laps.filter(l => String(l.garmin_activity_id) === String(bgWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
               : null
             const bgChartData = bgLaps
-              ? bgLaps.map(l => ({ hr: l.povprecni_hr||null, pace: parsePace(l.povprecni_tempo) })).filter(d => d.hr && d.pace)
+              ? bgLaps.filter(l => !l.intensity_type || l.intensity_type === 'WARMUP' || l.intensity_type === 'COOLDOWN').map(l => ({ hr: l.povprecni_hr||null, pace: parsePace(l.povprecni_tempo) })).filter(d => d.hr && d.pace)
               : chartData
 
             const compLaps = compWorkoutId
               ? laps.filter(l => String(l.garmin_activity_id) === String(compWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
               : []
             const compChartData = compLaps
+              .filter(l => !l.intensity_type || l.intensity_type === 'WARMUP' || l.intensity_type === 'COOLDOWN')
               .map(l => ({ hr: l.povprecni_hr||null, pace: parsePace(l.povprecni_tempo) }))
               .filter(d => d.hr && d.pace)
             const maxLen = Math.max(bgChartData.length, compChartData.length)
@@ -199,13 +212,11 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               compPace: compChartData[i]?.pace ?? null,
             }))
 
-            // Pa:HR aerobni decoupling
             const decouplingPct = calcDecoupling(chartData.map(d => ({
               povprecni_hr: d.hr,
               povprecni_tempo: `${Math.floor(d.pace/60)}:${String(d.pace%60).padStart(2,'0')}`,
             })))
 
-            // Primerjava z istim tipom tekov
             const tipTeka = detectTipLocal(a.tek)
             const istiTipTeki = workouts
               .filter(w => isTek(w) && w.datum < a.tek.datum && w.razdalja_km > 0)
@@ -214,7 +225,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               .slice(0, 8)
             const prevDecouplings = istiTipTeki
               .map(w => calcDecoupling(
-                laps.filter(l => l.garmin_activity_id === w.garmin_activity_id)
+                laps.filter(l => l.garmin_activity_id === w.garmin_activity_id && (!l.intensity_type || l.intensity_type === 'WARMUP'))
                     .sort((x, y) => x.lap_number - y.lap_number)
               ))
               .filter(d => d !== null)
@@ -233,92 +244,276 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
 
             return (
               <div style={{marginBottom:14}}>
-                <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:6,flexWrap:'wrap'}}>
-                  <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>HR &amp; Pace po km</div>
-                  {decouplingPct !== null && (
-                    <div style={{fontFamily:'DM Mono',fontSize:12,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                      <span style={{color:'#475569'}}>Pa:HR decoupling:</span>
-                      <span style={{fontWeight:700,color:dcColor,fontSize:13}}>
-                        {decouplingPct > 0 ? '+' : ''}{decouplingPct}%
-                      </span>
-                      <span style={{color:'#475569'}}>{dcLabel}</span>
-                      {decouplingAvgPrev !== null && (() => {
-                        const delta = decouplingPct - decouplingAvgPrev
-                        const boljse = delta < -1
-                        const slabse = delta > 1
-                        return (
-                          <span style={{fontSize:11,color:'#334155'}}>
-                            vs {TIP_LABEL_SHORT[tipTeka]} ({prevDecouplings.length}×):
-                            <span style={{color: boljse ? '#22c55e' : slabse ? '#f97316' : '#64748b', fontWeight:600, marginLeft:4}}>
-                              {decouplingAvgPrev > 0 ? '+' : ''}{decouplingAvgPrev}%
-                            </span>
-                            <span style={{color: boljse ? '#22c55e' : slabse ? '#f97316' : '#64748b', marginLeft:4}}>
-                              {boljse ? '↑ boljše' : slabse ? '↓ slabše' : '≈ podobno'}
-                            </span>
+
+                {/* ── Strides sekcija (samo za strukturirane teke) ── */}
+                {hasStructured && activeLapi.length > 0 && (() => {
+                  const stridePaces = activeLapi.map(l => parsePace(l.povprecni_tempo)).filter(Boolean)
+                  const fastestPace = Math.min(...stridePaces)
+                  const slowestPace = Math.max(...stridePaces)
+
+                  return (
+                    <div style={{marginBottom:16}}>
+                      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10,flexWrap:'wrap'}}>
+                        <div style={{fontSize:11,color:'#f97316',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px',fontWeight:600}}>
+                          ⚡ {activeLapi.length}× strides
+                        </div>
+                        <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono'}}>
+                          najhitrejši: <span style={{color:'#22c55e',fontWeight:600}}>{Math.floor(fastestPace/60)}:{String(fastestPace%60).padStart(2,'0')}/km</span>
+                        </span>
+                        <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono'}}>
+                          progresija: <span style={{color: slowestPace - fastestPace > 30 ? '#22c55e' : '#94a3b8', fontWeight:600}}>
+                            {Math.round((slowestPace - fastestPace) / activeLapi.length)}s/km/stride
                           </span>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </div>
-                {decouplingPct !== null && (
-                  <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',marginBottom:8,paddingLeft:2,lineHeight:1.5}}>
-                    {decouplingInterpretacija(decouplingPct)}
-                  </div>
-                )}
-                {chartData.length >= 2 ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <ComposedChart data={mergedData} margin={{top:4,right:8,left:4,bottom:0}}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
-                      <XAxis dataKey="km" tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}} label={{value:'km',position:'insideBottomRight',offset:-2,fontSize:10,fill:'#475569'}}/>
-                      <YAxis yAxisId="hr" domain={['auto','auto']} tick={{fontSize:10,fill:'#f97316',fontFamily:'DM Mono'}} width={32}/>
-                      <YAxis yAxisId="pace" orientation="right" reversed={true} domain={[paceMin, paceMax]} tick={{fontSize:10,fill:'#3b82f6',fontFamily:'DM Mono'}} width={38} tickFormatter={v => { const m=Math.floor(v/60); const s=String(v%60).padStart(2,'0'); return `${m}:${s}` }}/>
-                      <Tooltip
-                        content={({active,payload,label}) => {
-                          if (!active || !payload?.length) return null
-                          const d = payload[0]?.payload
-                          if (!d) return null
-                          const pm = d.pace ? Math.floor(d.pace/60) : null
-                          const ps = d.pace ? String(d.pace%60).padStart(2,'0') : null
-                          const cpm = d.compPace ? Math.floor(d.compPace/60) : null
-                          const cps = d.compPace ? String(d.compPace%60).padStart(2,'0') : null
-                          const compW = compWorkoutId ? workouts.find(w => String(w.garmin_activity_id) === String(compWorkoutId)) : null
-                          const bgW = bgWorkoutId ? workouts.find(w => String(w.garmin_activity_id) === String(bgWorkoutId)) : null
-                          const bgLabel = bgW ? bgW.naziv : a.tek.naziv
+                        </span>
+                      </div>
+
+                      {/* Stride kartice */}
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+                        {activeLapi.map((l, i) => {
+                          const pace = parsePace(l.povprecni_tempo)
+                          const isNajhitrejsi = pace === fastestPace
+                          const progPct = stridePaces.length > 1 ? (slowestPace - pace) / (slowestPace - fastestPace) : 1
+                          const col = `hsl(${Math.round(30 + progPct * 20)}, ${Math.round(70 + progPct * 30)}%, ${Math.round(45 + progPct * 15)}%)`
                           return (
-                            <div style={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
-                              <div style={{color:'#64748b',marginBottom:4}}>{label}. km</div>
-                              {compWorkoutId && <div style={{color:'#94a3b8',fontSize:10,marginBottom:4}}>{bgLabel}</div>}
-                              <div style={{color:'#f97316',opacity: compWorkoutId ? 0.5 : 1}}>HR: {d.hr ?? '—'} bpm</div>
-                              <div style={{color:'#3b82f6',opacity: compWorkoutId ? 0.5 : 1}}>Pace: {pm !== null ? `${pm}:${ps}` : '—'} /km</div>
-                              {compWorkoutId && (d.compHr || d.compPace) && (
-                                <>
-                                  <div style={{color:'#94a3b8',fontSize:10,marginTop:6,marginBottom:2}}>{compW?.naziv || 'Primerjava'}</div>
-                                  {d.compHr && <div style={{color:'#f97316'}}>HR: {d.compHr} bpm</div>}
-                                  {d.compPace && <div style={{color:'#3b82f6'}}>Pace: {cpm}:{cps} /km</div>}
-                                </>
-                              )}
+                            <div key={i} style={{
+                              padding:'10px 14px', borderRadius:8, background:'#080f1e',
+                              border:`1px solid ${col}${isNajhitrejsi ? '' : '66'}`,
+                              minWidth:80, textAlign:'center',
+                              boxShadow: isNajhitrejsi ? `0 0 12px ${col}44` : 'none',
+                            }}>
+                              <div style={{fontSize:9,color:'#475569',fontFamily:'DM Mono',marginBottom:4}}>#{i+1}</div>
+                              <div style={{fontSize:16,fontWeight:700,color:col,fontFamily:'DM Mono',lineHeight:1}}>
+                                {pace ? `${Math.floor(pace/60)}:${String(pace%60).padStart(2,'0')}` : '—'}
+                              </div>
+                              <div style={{fontSize:9,color:'#334155',fontFamily:'DM Mono',marginTop:3}}>/km</div>
+                              {l.max_hr > 0 && <div style={{fontSize:9,color:'#f9731666',fontFamily:'DM Mono',marginTop:4}}>max {l.max_hr} bpm</div>}
+                              {l.razdalja_km && <div style={{fontSize:9,color:'#1e3a5f',fontFamily:'DM Mono',marginTop:1}}>{Math.round(l.razdalja_km*1000)}m</div>}
                             </div>
                           )
-                        }}
-                      />
-                      <Line yAxisId="hr" type="monotone" dataKey="hr" stroke="#f97316" strokeWidth={compWorkoutId ? 1.5 : 2} strokeOpacity={compWorkoutId ? 0.3 : 1} dot={compWorkoutId ? false : {r:3,fill:'#f97316'}} name="HR"/>
-                      <Line yAxisId="pace" type="monotone" dataKey="pace" stroke="#3b82f6" strokeWidth={compWorkoutId ? 1.5 : 2} strokeOpacity={compWorkoutId ? 0.3 : 1} dot={compWorkoutId ? false : {r:3,fill:'#3b82f6'}} name="Pace"/>
-                      {compWorkoutId && <Line yAxisId="hr" type="monotone" dataKey="compHr" stroke="#f97316" strokeWidth={2} dot={{r:3,fill:'#f97316'}} name="HR (primerjava)" connectNulls={false}/>}
-                      {compWorkoutId && <Line yAxisId="pace" type="monotone" dataKey="compPace" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}} name="Pace (primerjava)" connectNulls={false}/>}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                    {a.lapi.map((l, i) => (
-                      <div key={i} style={{padding:'4px 8px',borderRadius:4,background:'#0f172a',border:'1px solid #1e2433',fontSize:11,fontFamily:'DM Mono',minWidth:70}}>
-                        <div style={{color:'#475569'}}>{i+1}. km</div>
-                        <div style={{color:hrZonaColor(l.povprecni_hr)}}>{l.povprecni_hr||'—'} bpm</div>
-                        <div style={{color:'#64748b'}}>{l.povprecni_tempo||'—'}</div>
+                        })}
                       </div>
-                    ))}
-                  </div>
-                )}
+
+                    </div>
+                  )
+                })()}
+
+                {/* ── Graf celotnega teka ── */}
+                {(() => {
+                  const toChartPhase = p => (p === 'ACTIVE' || p === 'RECOVERY') ? 'STRIDES' : (p || 'RUN')
+
+                  // Base: bgWorkoutId-ovi lapi ali zadnji tek
+                  const baseLapsFull = bgWorkoutId
+                    ? laps.filter(l => String(l.garmin_activity_id) === String(bgWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
+                    : a.lapi
+                  const baseHasStr = baseLapsFull.some(l => l.intensity_type)
+                  const baseEasyL = baseHasStr
+                    ? baseLapsFull.filter(l => l.intensity_type === 'WARMUP')
+                    : baseLapsFull
+
+                  // Easy stats (iz base teka — definirano po baseEasyL)
+                  const easyHRs = baseEasyL.filter(l => l.povprecni_hr).map(l => l.povprecni_hr)
+                  const easyAvgHR = easyHRs.length ? Math.round(easyHRs.reduce((s,h)=>s+h,0)/easyHRs.length) : null
+                  const easyPaces = baseEasyL.map(l => parsePace(l.povprecni_tempo)).filter(Boolean)
+                  const easyAvgPaceSec = easyPaces.length ? Math.round(easyPaces.reduce((s,p)=>s+p,0)/easyPaces.length) : null
+
+                  // Comp easy lapi: compWorkoutId, ali zadnji tek če je bg custom
+                  const rawCompLaps = compWorkoutId
+                    ? laps.filter(l => String(l.garmin_activity_id) === String(compWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
+                    : bgWorkoutId ? a.lapi : []
+                  const rawCompHasStr = rawCompLaps.some(l => l.intensity_type)
+                  const compEasyL = rawCompHasStr
+                    ? rawCompLaps.filter(l => l.intensity_type === 'WARMUP')
+                    : rawCompLaps
+
+                  // Poravnaj po poziciji (ne lap_number, ker se razlikujeta med teki)
+                  const compByLap = {}
+                  baseEasyL.forEach((l, i) => {
+                    const cl = compEasyL[i]
+                    if (cl) compByLap[l.lap_number] = {
+                      compHr: cl.povprecni_hr || null,
+                      compPace: parsePace(cl.povprecni_tempo),
+                    }
+                  })
+
+                  // Full run data iz base lapov
+                  const fullRunData = baseLapsFull.map((l, i) => ({
+                    idx: i + 1,
+                    hr: l.povprecni_hr || null,
+                    pace: parsePace(l.povprecni_tempo),
+                    phase: l.intensity_type || 'RUN',
+                    chartPhase: toChartPhase(l.intensity_type),
+                    ...(compByLap[l.lap_number] || {}),
+                  }))
+
+                  // Unique chart phases in order of appearance (for legend)
+                  const uniquePhases = []
+                  fullRunData.forEach(d => { if (!uniquePhases.includes(d.chartPhase)) uniquePhases.push(d.chartPhase) })
+
+                  // Phase ranges idx-based, ±0.5 so single-lap areas are visible
+                  const phaseRanges = []
+                  let curPhase = null, curStart = 1
+                  fullRunData.forEach((d, i) => {
+                    if (d.chartPhase !== curPhase) {
+                      if (curPhase !== null) phaseRanges.push({ phase: curPhase, start: curStart - 0.5, end: i + 0.5 })
+                      curPhase = d.chartPhase; curStart = i + 1
+                    }
+                  })
+                  if (curPhase) phaseRanges.push({ phase: curPhase, start: curStart - 0.5, end: fullRunData.length + 0.5 })
+
+                  // Display data — zoom filters on chartPhase, keeps original idx
+                  const displayData = activePhase
+                    ? fullRunData.filter(d => d.chartPhase === activePhase)
+                    : fullRunData
+
+                  const hasComp = !!(compWorkoutId || bgWorkoutId)
+                  const showComp = hasComp && (!activePhase || activePhase === 'WARMUP' || activePhase === 'RUN')
+                  const compForDisplay = displayData
+
+                  const dispPaces = compForDisplay.map(d=>d.pace).filter(Boolean)
+                  const dispPaceMin = dispPaces.length ? Math.min(...dispPaces) - 10 : 0
+                  const dispPaceMax = dispPaces.length ? Math.max(...dispPaces) + 10 : 400
+                  const xMin = displayData.length > 0 ? displayData[0].idx - 0.5 : 0.5
+                  const xMax = displayData.length > 0 ? displayData[displayData.length-1].idx + 0.5 : 1.5
+
+                  if (fullRunData.length < 2) return null
+
+                  return (
+                    <div>
+                      {/* 1. Cardiac drift — prva točka analize, samo easy segment */}
+                      {decouplingPct !== null && (
+                        <div style={{marginBottom:12,padding:'10px 14px',borderRadius:6,background:'#080f1e',border:`1px solid ${dcColor}22`}}>
+                          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:4}}>
+                            <span style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Pa:HR Cardiac Drift</span>
+                            <span style={{fontWeight:700,color:dcColor,fontFamily:'DM Mono',fontSize:15}}>{decouplingPct > 0 ? '+' : ''}{decouplingPct}%</span>
+                            <span style={{fontSize:11,color:dcColor,fontFamily:'DM Mono'}}>{dcLabel}</span>
+                            {decouplingAvgPrev !== null && (() => {
+                              const delta = decouplingPct - decouplingAvgPrev
+                              const boljse = delta < -1, slabse = delta > 1
+                              return (
+                                <span style={{fontSize:10,color:'#334155',fontFamily:'DM Mono'}}>
+                                  vs {TIP_LABEL_SHORT[tipTeka]} ({prevDecouplings.length}×):
+                                  <span style={{color: boljse?'#22c55e':slabse?'#f97316':'#64748b',fontWeight:600,marginLeft:3}}>
+                                    {decouplingAvgPrev>0?'+':''}{decouplingAvgPrev}% {boljse?'↑':slabse?'↓':'≈'}
+                                  </span>
+                                </span>
+                              )
+                            })()}
+                          </div>
+                          <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',lineHeight:1.5}}>
+                            {decouplingInterpretacija(decouplingPct)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 2. Easy faza stats */}
+                      <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:8,flexWrap:'wrap'}}>
+                        <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                          {hasStructured ? 'Easy faza' : 'HR & Pace po km'}
+                        </div>
+                        {easyAvgHR && (
+                          <span style={{fontSize:11,color:'#94a3b8',fontFamily:'DM Mono'}}>
+                            povp. HR: <span style={{color:hrZonaColor(easyAvgHR),fontWeight:600}}>{easyAvgHR} bpm</span>
+                          </span>
+                        )}
+                        {easyAvgPaceSec && (
+                          <span style={{fontSize:11,color:'#94a3b8',fontFamily:'DM Mono'}}>
+                            povp. tempo: <span style={{color:'#3b82f6',fontWeight:600}}>{Math.floor(easyAvgPaceSec/60)}:{String(easyAvgPaceSec%60).padStart(2,'0')}/km</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Legenda / zoom chips */}
+                      {hasStructured && (
+                        <div style={{display:'flex',gap:5,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
+                          {uniquePhases.map(ph => {
+                            const isActive = activePhase === ph
+                            const col = PHASE_COLOR[ph] || '#94a3b8'
+                            return (
+                              <button key={ph} onClick={() => setActivePhase(isActive ? null : ph)} style={{
+                                padding:'3px 10px', borderRadius:4, cursor:'pointer', fontFamily:'DM Mono', fontSize:11,
+                                border:`1px solid ${col}${isActive?'':55}`,
+                                background: isActive ? col+'22' : 'transparent',
+                                color: col, transition:'all .15s',
+                              }}>
+                                {PHASE_LABEL[ph] || ph}
+                              </button>
+                            )
+                          })}
+                          {activePhase && (
+                            <button onClick={() => setActivePhase(null)} style={{
+                              padding:'3px 10px', borderRadius:4, cursor:'pointer', fontFamily:'DM Mono', fontSize:11,
+                              border:'1px solid #334155', background:'transparent', color:'#475569',
+                            }}>× vse</button>
+                          )}
+                          <span style={{fontSize:10,color:'#1e3a5f',fontFamily:'DM Mono',marginLeft:4}}>
+                            {activePhase ? `zoom: ${PHASE_LABEL[activePhase]}` : 'klikni fazo za zoom'}
+                          </span>
+                        </div>
+                      )}
+
+
+                      {/* Chart */}
+                      <ResponsiveContainer width="100%" height={220}>
+                        <ComposedChart data={compForDisplay} margin={{top:4,right:8,left:4,bottom:0}}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
+                          <XAxis dataKey="idx" type="number"
+                            domain={[xMin, xMax]}
+                            ticks={displayData.map(d => d.idx)}
+                            tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}
+                            label={{value:'lap',position:'insideBottomRight',offset:-2,fontSize:10,fill:'#475569'}}/>
+                          <YAxis yAxisId="hr" domain={['auto','auto']} tick={{fontSize:10,fill:'#f97316',fontFamily:'DM Mono'}} width={32}/>
+                          <YAxis yAxisId="pace" orientation="right" reversed={true} domain={[dispPaceMin,dispPaceMax]}
+                            tick={{fontSize:10,fill:'#3b82f6',fontFamily:'DM Mono'}} width={38}
+                            tickFormatter={v=>{const m=Math.floor(v/60),s=String(v%60).padStart(2,'0');return`${m}:${s}`}}/>
+                          <Tooltip content={({active,payload}) => {
+                            if (!active||!payload?.length) return null
+                            const d = payload[0]?.payload
+                            if (!d) return null
+                            const ph = d.chartPhase || d.phase
+                            const col = PHASE_COLOR[ph]||'#94a3b8'
+                            const pm = d.pace ? Math.floor(d.pace/60) : null
+                            const ps = d.pace ? String(d.pace%60).padStart(2,'0') : null
+                            const cpm = d.compPace ? Math.floor(d.compPace/60) : null
+                            const cps = d.compPace ? String(d.compPace%60).padStart(2,'0') : null
+                            const compW = compWorkoutId ? workouts.find(w=>String(w.garmin_activity_id)===String(compWorkoutId)) : null
+                            const bgW = bgWorkoutId ? workouts.find(w=>String(w.garmin_activity_id)===String(bgWorkoutId)) : null
+                            return (
+                              <div style={{background:'#111827',border:`1px solid ${col}44`,borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
+                                <div style={{color:col,fontWeight:600,marginBottom:4,fontSize:10}}>{PHASE_LABEL[ph]||ph} · lap {d.idx}</div>
+                                <div style={{color:'#f97316',opacity:showComp&&compWorkoutId?0.5:1}}>HR: {d.hr??'—'} bpm</div>
+                                <div style={{color:'#3b82f6',opacity:showComp&&compWorkoutId?0.5:1}}>Pace: {pm!==null?`${pm}:${ps}`:'—'} /km</div>
+                                {showComp && compWorkoutId && (d.compHr||d.compPace) && (
+                                  <>
+                                    <div style={{color:'#94a3b8',fontSize:10,marginTop:5,marginBottom:2}}>{compW?.naziv||bgW?.naziv||'Primerjava'}</div>
+                                    {d.compHr&&<div style={{color:'#f97316'}}>HR: {d.compHr} bpm</div>}
+                                    {d.compPace&&<div style={{color:'#3b82f6'}}>Pace: {cpm}:{cps} /km</div>}
+                                  </>
+                                )}
+                              </div>
+                            )
+                          }}/>
+                          {/* Phase shading — when zoomed show only active phase (no extendDomain on others) */}
+                          {phaseRanges
+                            .filter(p => !activePhase || p.phase === activePhase)
+                            .map((p,i) => (
+                              <ReferenceArea key={i} yAxisId="hr" x1={p.start} x2={p.end}
+                                fill={PHASE_COLOR[p.phase]||'#94a3b8'} fillOpacity={0.1}/>
+                            ))
+                          }
+                          <Line yAxisId="hr" type="monotone" dataKey="hr" stroke="#f97316"
+                            strokeWidth={showComp ? 1.5 : 2} strokeOpacity={showComp ? 0.3 : 1}
+                            dot={{r:4,fill:'#f97316'}} activeDot={{r:6}} name="HR" connectNulls={false}/>
+                          <Line yAxisId="pace" type="monotone" dataKey="pace" stroke="#3b82f6"
+                            strokeWidth={showComp ? 1.5 : 2} strokeOpacity={showComp ? 0.3 : 1}
+                            dot={{r:4,fill:'#3b82f6'}} activeDot={{r:6}} name="Pace" connectNulls={false}/>
+                          {showComp && <Line yAxisId="hr" type="monotone" dataKey="compHr" stroke="#f97316" strokeWidth={2} dot={{r:3,fill:'#f97316'}} connectNulls={false}/>}
+                          {showComp && <Line yAxisId="pace" type="monotone" dataKey="compPace" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}} connectNulls={false}/>}
+                        </ComposedChart>
+                      </ResponsiveContainer>
+
+                    </div>
+                  )
+                })()}
               </div>
             )
           })()}
