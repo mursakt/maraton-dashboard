@@ -82,10 +82,10 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
   const vo2Data=workouts.filter(w=>w.vo2max&&w.vo2max>0).slice(0,20).reverse().map(w=>({datum:w.datum?.slice(5),vo2:w.vo2max}))
 
   // HR efikasnost po tednih
-  // Le steady teki ≥40 min: krajši teki nimajo cardiac drifta in z nizkim HR
-  // umetno izgledajo super-efikasni (glej analizo 04-27). Aerobni HR pas 138–169.
+  // Izločen tek 04-27 (id 22675643667): 31min/5.84km pri HR 147 → anomalija,
+  // kratek tek brez drifta z nizkim HR je dajal nerealno visoko efikasnost.
   const efikByWeek = {}
-  teki.filter(w => w.povprecni_hr >= 138 && w.povprecni_hr <= 169 && w.povprecni_tempo && (w.trajanje_min || 0) >= 40).forEach(w => {
+  teki.filter(w => w.povprecni_hr >= 138 && w.povprecni_hr <= 169 && w.povprecni_tempo && w.garmin_activity_id !== 22675643667).forEach(w => {
     if (!w.datum) return
     const d = new Date(w.datum)
     const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay()+6)%7))
@@ -95,16 +95,10 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
     const norm = tempoSec ? Math.round(tempoSec + (w.povprecni_hr - 155) * 4) : null
     if (norm) { if (!efikByWeek[key]) efikByWeek[key] = []; efikByWeek[key].push(norm) }
   })
-  // ≥2 kvalificirana teka = zanesljiva točka (efik); 1 tek = nizka zanesljivost (efikLow)
-  const kombiniranGraf = kmPoTednih.map(({ teden, km }) => {
-    const vals = efikByWeek[teden] || []
-    const avg = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null
-    return {
-      teden, km,
-      efik: vals.length >= 2 ? avg : null,
-      efikLow: vals.length === 1 ? avg : null,
-    }
-  })
+  const kombiniranGraf = kmPoTednih.map(({ teden, km }) => ({
+    teden, km,
+    efik: efikByWeek[teden] ? Math.round(efikByWeek[teden].reduce((a,b)=>a+b,0)/efikByWeek[teden].length) : null
+  }))
 
   // VO2max izracun
   const vo2Sorted = workouts.filter(w=>w.vo2max&&w.vo2max>0).sort((a,b)=>b.datum.localeCompare(a.datum))
@@ -599,9 +593,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
       <h3>Km po tednih &amp; HR efikasnost</h3>
       <div style={{fontSize:11,color:'#475569',marginBottom:8,fontFamily:'DM Mono'}}>
         <span style={{color:'#3b82f6',fontWeight:600}}>■</span> km (levo) &nbsp;·&nbsp;
-        <span style={{color:'#f59e0b',fontWeight:600}}>—</span> tempo pri HR 155 bpm (desno, nižje = boljša efikasnost) &nbsp;·&nbsp;
-        <span style={{color:'#64748b',fontWeight:600}}>○</span> 1 tek = nizka zanesljivost
-        <div style={{color:'#475569',marginTop:2}}>le steady teki ≥40 min, HR 138–169 (krajši teki brez drifta lažno kažejo visoko efikasnost)</div>
+        <span style={{color:'#f59e0b',fontWeight:600}}>—</span> tempo pri HR 155 bpm (desno, nižje = boljša efikasnost)
       </div>
       {kombiniranGraf.length > 0 ? (
         <ResponsiveContainer width="100%" height={210}>
@@ -619,14 +611,13 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                   <div style={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
                     <div style={{color:'#64748b',marginBottom:4}}>teden {label}</div>
                     <div style={{color:'#3b82f6'}}>Km: {d.km}</div>
-                    {(d.efik ?? d.efikLow) && <div style={{color:d.efik?'#f59e0b':'#64748b'}}>Efik: {Math.floor((d.efik ?? d.efikLow)/60)}:{String((d.efik ?? d.efikLow)%60).padStart(2,'0')}/km pri HR 155{d.efikLow ? ' (1 tek — nizka zanesljivost)' : ''}</div>}
+                    {d.efik && <div style={{color:'#f59e0b'}}>Efik: {Math.floor(d.efik/60)}:{String(d.efik%60).padStart(2,'0')}/km pri HR 155</div>}
                   </div>
                 )
               }}
             />
             <Bar yAxisId="km" dataKey="km" fill="#3b82f644" stroke="#3b82f6" strokeWidth={1} radius={[4,4,0,0]}/>
             <Line yAxisId="efik" type="monotone" dataKey="efik" stroke="#f59e0b" strokeWidth={2} dot={{r:4,fill:'#f59e0b'}} connectNulls={false}/>
-            <Line yAxisId="efik" type="monotone" dataKey="efikLow" stroke="none" dot={{r:3,fill:'#64748b',stroke:'#94a3b8',strokeWidth:1}} legendType="none"/>
           </ComposedChart>
         </ResponsiveContainer>
       ) : <div className="empty">Ni dovolj podatkov</div>}
