@@ -10,10 +10,24 @@ const CHART_HEIGHT = 200
 
 export function TabTelo({metrike, workouts=[]}){
   const tezaDejansko=metrike.filter(m=>m.teza_kg).slice(0,60).reverse()
+  const DAN_MS=86400000
   const tezaGraf=tezaDejansko.map(m=>{
     const p=PLAN.slice().reverse().find(pl=>pl.datum<=m.datum)
-    return{datum:m.datum?.slice(5),dejanska:m.teza_kg,plan:p?.ciljnaKg||null}
+    const t=new Date(m.datum).getTime()
+    // koledarsko 7-dnevno drsece povprecje (zadnjih 7 dni vkljucno z danasnjim) — pogladi dnevni sum vode/glikogena
+    const okno=tezaDejansko.filter(x=>{const xt=new Date(x.datum).getTime(); return xt<=t && xt>t-7*DAN_MS})
+    const ma7=okno.reduce((s,x)=>s+x.teza_kg,0)/okno.length
+    return{datum:m.datum?.slice(5),_t:t,dejanska:m.teza_kg,ma7:Math.round(ma7*100)/100,plan:p?.ciljnaKg||null}
   })
+  // tempo spremembe iz gladke MA: MA danes − MA ~pred 7 dnevi (kg/teden), ne iz surovih sumnih tock
+  const tezaTempo=(()=>{
+    if(tezaGraf.length<2) return null
+    const zadnji=tezaGraf[tezaGraf.length-1]
+    const cilj=zadnji._t-7*DAN_MS
+    const prej=tezaGraf.reduce((best,g)=>Math.abs(g._t-cilj)<Math.abs(best._t-cilj)?g:best, tezaGraf[0])
+    if(prej===zadnji) return null
+    return Math.round((zadnji.ma7-prej.ma7)*10)/10
+  })()
   const hrvData=metrike.filter(m=>m.hrv).slice(0,28).reverse().map(m=>({datum:m.datum?.slice(5),hrv:m.hrv}))
   const hrvMax = hrvData.length > 0 ? Math.max(...hrvData.map(d => d.hrv)) + 5 : 100
   const spanjeData=metrike.filter(m=>m.spanje_h).slice(0,14).reverse().map(m=>({datum:m.datum?.slice(5),ure:m.spanje_h}))
@@ -82,7 +96,16 @@ export function TabTelo({metrike, workouts=[]}){
 
     {/* Teža graf */}
     <div className="card" style={{marginBottom:16}}>
-      <h3>Teža — dejanska vs plan (kg)</h3>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',flexWrap:'wrap',gap:8}}>
+        <h3>Teža — povprečje 7d vs plan (kg)</h3>
+        {tezaTempo!=null && (
+          <div style={{fontSize:11,fontFamily:'DM Mono',color:'#475569'}}>
+            Tempo: <span style={{color:tezaTempo<0?'#22c55e':tezaTempo>0?'#f97316':'#94a3b8',fontWeight:500}}>
+              {tezaTempo>0?'+':''}{fmt(tezaTempo)} kg/teden {tezaTempo<0?'▼':tezaTempo>0?'▲':''}
+            </span>
+          </div>
+        )}
+      </div>
       {tezaGraf.length>1?(
         <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
           <LineChart data={tezaGraf} margin={{top:4,right:4,left:-20,bottom:0}}>
@@ -91,7 +114,8 @@ export function TabTelo({metrike, workouts=[]}){
             <YAxis domain={['auto','auto']} tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}/>
             <Tooltip contentStyle={{background:'#111827',border:'1px solid #1e2433',borderRadius:8,fontSize:12}}/>
             <Legend wrapperStyle={{fontSize:11,color:'#94a3b8'}}/>
-            <Line type="monotone" dataKey="dejanska" stroke="#3b82f6" strokeWidth={2} dot={false} name="Dejanska"/>
+            <Line type="monotone" dataKey="dejanska" stroke="#3b82f6" strokeWidth={1} strokeOpacity={0.22} dot={{r:1.8,fill:'#3b82f6',fillOpacity:0.5,strokeWidth:0}} name="Dnevno"/>
+            <Line type="monotone" dataKey="ma7" stroke="#3b82f6" strokeWidth={2.5} dot={false} name="Povprečje 7d"/>
             <Line type="monotone" dataKey="plan" stroke="#475569" strokeWidth={1} strokeDasharray="4 4" dot={false} name="Plan"/>
           </LineChart>
         </ResponsiveContainer>
