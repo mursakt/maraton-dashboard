@@ -8,7 +8,7 @@ function avg(arr, key) {
   return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null
 }
 
-export function AlarmiPanel({ workouts, metrike, prehrana, predikcija }) {
+export function AlarmiPanel({ workouts, metrike, prehrana, predikcija, compact = false }) {
   const alarmi = []
   const now = new Date()
 
@@ -232,14 +232,14 @@ export function AlarmiPanel({ workouts, metrike, prehrana, predikcija }) {
 
   return (
     <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {kritični.length > 0 && <AlarmGroup nivo="kritično" alarmi={kritični} />}
-      {opozorila.length > 0 && <AlarmGroup nivo="opozorilo" alarmi={opozorila} />}
+      {kritični.length > 0 && <AlarmGroup nivo="kritično" alarmi={kritični} initialOpen={!compact} />}
+      {opozorila.length > 0 && <AlarmGroup nivo="opozorilo" alarmi={opozorila} initialOpen={false} />}
     </div>
   )
 }
 
-function AlarmGroup({ nivo, alarmi }) {
-  const [open, setOpen] = React.useState(nivo === 'kritično')
+function AlarmGroup({ nivo, alarmi, initialOpen }) {
+  const [open, setOpen] = React.useState(initialOpen != null ? initialOpen : nivo === 'kritično')
   const isKrit = nivo === 'kritično'
   const barva = isKrit ? '#ef4444' : '#eab308'
   const barvaTxt = isKrit ? '#f87171' : '#fbbf24'

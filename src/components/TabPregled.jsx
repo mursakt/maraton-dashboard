@@ -1,31 +1,75 @@
 import React from 'react'
 import { PLAN, PLAN_TRENINGI, TODAY_STR, YESTERDAY_STR, RACE_DATE } from '../constants/plan'
 import { izracunajLoad, izracunajPripravljenost } from '../utils/calculations'
-import { isTek, fmt, formaColor, formaLabel, pripravljenostColor, pripravljenostLabel, hrZona, hrZonaColor, izracunajBMR } from '../utils/helpers'
-import { StatCard } from './StatCard'
+import { isTek, fmt, formaLabel, pripravljenostColor, pripravljenostLabel, hrZonaColor, izracunajBMR } from '../utils/helpers'
 import { AlarmiPanel } from './AlarmiPanel'
 
-function MacroBar({ label, value, goal, color = '#3b82f6' }) {
-  const v = value || 0
-  const pct = goal > 0 ? v / goal : 0
-  const over = pct > 1
+const fmtCas = (s) => s ? `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}` : null
+
+// ── DANES verdikt: zmeša pripravljenost + plan + HRV/RHR/load trend v eno priporočilo ──
+function izracunajVerdikt({ pripravljenost, razmerje, hrvPadecPct, rhrPorast, planiran, jeDanes }) {
+  const opis = (planiran?.opis || '').toLowerCase()
+  let tip = 'lahek'
+  if (/interval|tempo|fartlek|ponav|prag|vo2|hitr/.test(opis)) tip = 'kakovost'
+  else if (/dolg/.test(opis)) tip = 'dolgi'
+
+  // Najslabši signal določa nivo
+  const razlogi = []
+  let nivo = 'green'
+  const flag = (cond, txt, lvl) => { if (cond) { razlogi.push(txt); if (lvl === 'red' || nivo === 'green') nivo = lvl } }
+  // rdeče
+  if (pripravljenost != null && pripravljenost < 45) flag(true, `pripravljenost ${pripravljenost}%`, 'red')
+  if (hrvPadecPct != null && hrvPadecPct > 15) flag(true, `HRV pada −${Math.round(hrvPadecPct)}%`, 'red')
+  if (rhrPorast != null && rhrPorast > 5) flag(true, `HR počitka +${Math.round(rhrPorast)} bpm`, 'red')
+  if (razmerje != null && razmerje > 1.5) flag(true, `ATL/CTL ${razmerje.toFixed(2)}`, 'red')
+  // rumeno (samo če še ni rdeče)
+  if (nivo !== 'red') {
+    if (pripravljenost != null && pripravljenost < 60) flag(true, `pripravljenost ${pripravljenost}%`, 'caution')
+    if (hrvPadecPct != null && hrvPadecPct > 8) flag(true, `HRV −${Math.round(hrvPadecPct)}%`, 'caution')
+    if (rhrPorast != null && rhrPorast > 3) flag(true, `HR počitka +${Math.round(rhrPorast)} bpm`, 'caution')
+    if (razmerje != null && razmerje > 1.3) flag(true, `ATL/CTL ${razmerje.toFixed(2)}`, 'caution')
+  }
+
+  const datumTxt = planiran ? (jeDanes ? 'danes' : `naslednji (${planiran.datum})`) : null
+  const planTxt = planiran ? `${planiran.opis} @ ${planiran.tempo}/km` : null
+
+  // Ni načrtovanega treninga = prost dan
+  if (!planiran) {
+    if (nivo === 'red') return { nivo: 'red', ikona: '🔴', naslov: 'POČITEK', razlog: razlogi.length ? razlogi.join(' · ') + ' → telo potrebuje regeneracijo' : 'telo potrebuje regeneracijo' }
+    return { nivo: 'green', ikona: '🟢', naslov: 'PROST DAN', razlog: 'po planu ni treninga — lahka hoja ali počitek', plan: null }
+  }
+
+  if (pripravljenost == null) {
+    return { nivo: 'neutral', ikona: '⚪', naslov: planiran.opis.toUpperCase(), razlog: `${datumTxt} · ni dovolj podatkov za prilagoditev`, plan: planTxt }
+  }
+
+  if (nivo === 'red') {
+    return { nivo: 'red', ikona: '🔴', naslov: 'POČITEK / 20–30 min hoja', razlog: `${razlogi.join(' · ')} → izpusti ${planiran.naziv}`, plan: planTxt }
+  }
+  if (nivo === 'caution') {
+    if (tip === 'kakovost' || tip === 'dolgi') {
+      return { nivo: 'caution', ikona: '🟡', naslov: `LAHEK TEK ${planiran.km} km @ 6:15`, razlog: `${razlogi.join(' · ')} → znižaj intenzivnost, prestavi ${planiran.naziv}`, plan: planTxt }
+    }
+    return { nivo: 'caution', ikona: '🟡', naslov: `${planiran.opis.toUpperCase()} @ ${planiran.tempo}`, razlog: `${razlogi.join(' · ')} → izvedi previdno`, plan: planTxt }
+  }
+  // green
+  return { nivo: 'green', ikona: '🟢', naslov: `${planiran.opis.toUpperCase()} @ ${planiran.tempo}`, razlog: `telo pripravljeno (pripravljenost ${pripravljenost}%) → izvedi ${planiran.naziv} po planu`, plan: planTxt }
+}
+
+const VERDIKT_BARVA = {
+  green: { brd: '#14532d', bg: '#04140b', txt: '#86efac' },
+  caution: { brd: '#78350f', bg: '#1a1200', txt: '#fcd34d' },
+  red: { brd: '#7f1d1d', bg: '#1a0606', txt: '#fca5a5' },
+  neutral: { brd: '#1e2433', bg: '#0b1220', txt: '#94a3b8' },
+}
+
+function KpiCard({ naslov, glavna, glavnaColor = '#e2e8f0', sub, subColor = '#64748b', trend }) {
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.5px' }}>{label}</span>
-        <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: v > 0 ? '#94a3b8' : '#475569' }}>
-          {v > 0 ? `${Math.round(v)} / ${Math.round(goal)}g` : `— / ${Math.round(goal)}g`}
-        </span>
-      </div>
-      <div style={{ height: 5, borderRadius: 3, background: '#1e2433', overflow: 'hidden' }}>
-        <div style={{
-          height: '100%',
-          width: `${Math.min(pct * 100, 100)}%`,
-          background: over ? '#f97316' : color,
-          borderRadius: 3,
-          transition: 'width .3s',
-        }} />
-      </div>
+    <div className="card">
+      <h3>{naslov}</h3>
+      <div><span className="stat-val" style={{ color: glavnaColor }}>{glavna}</span></div>
+      {sub && <div className="stat-sub" style={{ color: subColor }}>{sub}</div>}
+      {trend && <div style={{ fontSize: 11, color: trend.color, fontFamily: 'DM Mono', marginTop: 4 }}>{trend.txt}</div>}
     </div>
   )
 }
@@ -43,11 +87,7 @@ function MetrikaRow({ label, value, sub, delta, deltaReverse = false, last = fal
     )
   }
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '9px 0',
-      borderBottom: last ? 'none' : '1px solid #0f172a',
-    }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: last ? 'none' : '1px solid #0f172a' }}>
       <div>
         <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
         {sub && <div style={{ fontSize: 10, color: '#475569', marginTop: 1, fontFamily: 'DM Mono' }}>{sub}</div>}
@@ -60,87 +100,78 @@ function MetrikaRow({ label, value, sub, delta, deltaReverse = false, last = fal
   )
 }
 
-export function TabPregled({ workouts, metrike, prehrana, laps, prehranaCilji = [], currentTeden, formaScore, predikcija }) {
+function CardLink({ children, onClick }) {
+  return (
+    <span onClick={onClick} style={{ fontSize: 11, color: '#475569', fontFamily: 'DM Mono', cursor: 'pointer', textTransform: 'none', letterSpacing: 0, float: 'right', fontWeight: 400 }}
+      onMouseEnter={e => e.currentTarget.style.color = '#94a3b8'} onMouseLeave={e => e.currentTarget.style.color = '#475569'}>
+      {children} →
+    </span>
+  )
+}
+
+export function TabPregled({ workouts, metrike, prehrana, laps, prehranaCilji = [], currentTeden, formaScore, predikcija, onNavigate = () => {} }) {
   const planTeden = PLAN.find(p => p.teden === currentTeden)
   const tedStart = planTeden ? new Date(planTeden.datum) : new Date()
   const tedEnd = new Date(tedStart); tedEnd.setDate(tedEnd.getDate() + 7)
 
   // Km ta teden
-  const kmTaTeden = workouts
-    .filter(w => { const d = new Date(w.datum); return d >= tedStart && d < tedEnd && isTek(w) })
-    .reduce((s, w) => s + (w.razdalja_km || 0), 0)
+  const kmTaTeden = workouts.filter(w => { const d = new Date(w.datum); return d >= tedStart && d < tedEnd && isTek(w) }).reduce((s, w) => s + (w.razdalja_km || 0), 0)
   const kmPlan = planTeden?.km || 0
 
-  // Load
+  // Load + pripravljenost
   const { atl, ctl, razmerje, razmerjeOpis, razmerjeColor } = izracunajLoad(workouts)
-
-  // Pripravljenost
   const pripravljenost = izracunajPripravljenost(metrike, prehrana, workouts)
-
-  // Dni do maratona
   const dniDoMaratona = Math.ceil((new Date(RACE_DATE) - new Date()) / (1000 * 60 * 60 * 24))
 
-  // Napoved maratona
+  // ── Napoved + trend ───────────────────────────────
   const predCas = predikcija?.casFinal
-  const predStr = predCas
-    ? `${Math.floor(predCas / 3600)}:${String(Math.floor((predCas % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(predCas % 60)).padStart(2, '0')}`
-    : null
+  const predStr = fmtCas(predCas)
   const predVsCilj = predCas ? Math.round((predCas - 13500) / 60) : null
   const predColor = !predCas ? '#6b7280' : predVsCilj <= 0 ? '#22c55e' : predVsCilj <= 10 ? '#eab308' : '#ef4444'
+  const trendSec = predikcija?.trend
+  const napovedTrend = trendSec == null ? null
+    : trendSec > 30 ? { txt: `↗ napreduješ (${Math.abs(Math.round(trendSec / 60))} min hitreje)`, color: '#22c55e' }
+    : trendSec < -30 ? { txt: `↘ nazaduješ (${Math.abs(Math.round(trendSec / 60))} min počasneje)`, color: '#ef4444' }
+    : { txt: '→ stabilno', color: '#64748b' }
+  const tekmaStr = fmtCas(predikcija?.casTekma)
 
-  // Zadnji tek
-  const zadnjiTek = workouts.find(w => isTek(w))
-
-  // Naslednji trening iz plana
-  const naslednji = PLAN_TRENINGI.find(p => p.datum > TODAY_STR)
-
-  // Metrike - pomožne funkcije
-  const m7avg = (key) => {
-    const vals = metrike.slice(0, 7).map(m => m[key]).filter(x => x != null && x > 0)
-    return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null
-  }
+  // ── Metrike trendi ───────────────────────────────
+  const avgN = (arr, key, n) => { const v = arr.slice(0, n).map(m => typeof key === 'function' ? key(m) : m[key]).filter(x => x > 0); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null }
   const zadnjeM = metrike[0] || {}
-
-  // HRV
-  const hrv3avg = (() => {
-    const v = metrike.slice(0, 3).map(m => m.hrv).filter(x => x > 0)
-    return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null
-  })()
-  const hrv7avg = m7avg('hrv')
-  const hrvDelta = hrv3avg && hrv7avg ? hrv3avg - hrv7avg : null
-
-  // Resting HR
+  const hrv3 = avgN(metrike, 'hrv', 3)
+  const hrv7 = avgN(metrike, 'hrv', 7)
+  const hrv10 = avgN(metrike, 'hrv', 10)
+  const hrvPadecPct = hrv3 && hrv10 ? (hrv10 - hrv3) / hrv10 * 100 : null
+  const hrvTrend = hrvPadecPct == null ? null
+    : hrvPadecPct > 4 ? { txt: `HRV ↘ −${Math.round(hrvPadecPct)}%`, color: '#ef4444' }
+    : hrvPadecPct < -4 ? { txt: `HRV ↗ +${Math.round(-hrvPadecPct)}%`, color: '#22c55e' }
+    : { txt: 'HRV → stabilen', color: '#64748b' }
   const rhrKey = m => m.hr_pocivaj || m.resting_hr
-  const rhr3avg = (() => {
-    const v = metrike.slice(0, 3).map(rhrKey).filter(x => x > 0)
-    return v.length ? Math.round(v.reduce((s, x) => s + x, 0) / v.length) : null
-  })()
-  const rhr7avg = (() => {
-    const v = metrike.slice(0, 7).map(rhrKey).filter(x => x > 0)
-    return v.length ? Math.round(v.reduce((s, x) => s + x, 0) / v.length) : null
-  })()
+  const rhr3 = avgN(metrike, rhrKey, 3)
+  const rhr7 = avgN(metrike, rhrKey, 7)
+  const rhrPorast = rhr3 && rhr7 ? rhr3 - rhr7 : null
+  const spanje7 = avgN(metrike, 'spanje_h', 7)
+  const stres7 = avgN(metrike, 'stres_povprecje', 7)
 
-  // Spanje
-  const spanje7avg = m7avg('spanje_h')
-
-  // Teža
+  // Teža trend
   const zadnjaTeza = metrike.find(m => m.teza_kg)?.teza_kg
   const tezaPrej7 = metrike.slice(5, 14).find(m => m.teza_kg)?.teza_kg
   const tezaDelta = zadnjaTeza && tezaPrej7 ? zadnjaTeza - tezaPrej7 : null
 
-  // Prehrana - zadnji dan z MFP podatki
-  const zadnjiMfpDatum = prehrana
-    .filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR)
-    .sort((a, b) => b.datum.localeCompare(a.datum))[0]?.datum || YESTERDAY_STR
+  // ── Verdikt ───────────────────────────────
+  const planiranDanes = PLAN_TRENINGI.find(p => p.datum === TODAY_STR)
+  const planiranNasl = planiranDanes || PLAN_TRENINGI.find(p => p.datum > TODAY_STR)
+  const verdikt = izracunajVerdikt({ pripravljenost, razmerje, hrvPadecPct, rhrPorast: rhrPorast != null ? Math.round(rhrPorast) : null, planiran: planiranNasl, jeDanes: !!planiranDanes })
+  const vb = VERDIKT_BARVA[verdikt.nivo]
+
+  // ── Prehrana (zadnji MFP dan) ───────────────────────────────
+  const zadnjiMfpDatum = prehrana.filter(p => p.kalorije_skupaj > 0 && p.datum < TODAY_STR).sort((a, b) => b.datum.localeCompare(a.datum))[0]?.datum || YESTERDAY_STR
   const vP = prehrana.find(p => p.datum === zadnjiMfpDatum) || {}
   const vM = metrike.find(m => m.datum === zadnjiMfpDatum) || {}
-  const vW = workouts.filter(w => w.datum === zadnjiMfpDatum)
-  const trainKcal = vW.reduce((s, w) => s + (w.kalorije || 0), 0)
+  const trainKcal = workouts.filter(w => w.datum === zadnjiMfpDatum).reduce((s, w) => s + (w.kalorije || 0), 0)
   const skupajPorabljene = vM.skupaj_kcal || ((vM.bmr_kcal || izracunajBMR(zadnjaTeza)) + trainKcal)
   const zauziteKcal = vP.kalorije_skupaj || 0
   const deficit = zauziteKcal - skupajPorabljene
-
-  // 7-dnevni povp. neto deficit
   const z7 = prehrana.filter(p => p.kalorije_skupaj > 0).slice(0, 7)
   const avgDeficit7 = z7.length > 0 ? Math.round(z7.reduce((s, p) => {
     const wKcal = workouts.filter(w2 => w2.datum === p.datum).reduce((s2, w2) => s2 + (w2.kalorije || 0), 0)
@@ -148,240 +179,109 @@ export function TabPregled({ workouts, metrike, prehrana, laps, prehranaCilji = 
     return s + p.kalorije_skupaj - (mD.skupaj_kcal || ((mD.bmr_kcal || izracunajBMR(zadnjaTeza)) + wKcal))
   }, 0) / z7.length) : null
 
-  // Cilji za makre (iz prehranaCilji ali vP)
-  const cZ = prehranaCilji.find(c => c.datum === zadnjiMfpDatum) || prehranaCilji[0] || {}
-  const ciljBelj = cZ.cilj_belj_g || vP.cilj_belj_g || 175
-  const ciljOH = cZ.cilj_oh_g || vP.cilj_oh_g || 196
-  const ciljMasc = cZ.cilj_masc_g || vP.cilj_masc_g || 62
-
-  // Koraki
-  const koraki = zadnjeM.koraki > 0 ? Math.round(zadnjeM.koraki) : null
+  // Zadnji tek (kratek povzetek)
+  const zadnjiTek = workouts.find(w => isTek(w))
 
   return (<>
-    <AlarmiPanel workouts={workouts} metrike={metrike} prehrana={prehrana} predikcija={predikcija} />
+    {/* Alarmi — strnjeno */}
+    <AlarmiPanel workouts={workouts} metrike={metrike} prehrana={prehrana} predikcija={predikcija} compact />
 
-    {/* ── ROW 1: KLJUČNE METRIKE ─── */}
-    <div className="grid5" style={{ marginBottom: 12 }}>
-      <div className="card">
-        <h3>Pripravljenost</h3>
-        <div><span className="stat-val" style={{ color: pripravljenostColor(pripravljenost) }}>{pripravljenost ? `${pripravljenost}%` : '—'}</span></div>
-        <div className="stat-sub" style={{ color: pripravljenostColor(pripravljenost) }}>{pripravljenostLabel(pripravljenost)}</div>
-      </div>
-
-      <div className="card">
-        <h3>Forma danes</h3>
-        <div><span className="stat-val" style={{ color: formaColor(formaScore) }}>{formaScore ? fmt(formaScore) : '—'}</span></div>
-        <div className="stat-sub" style={{ color: formaColor(formaScore) }}>{formaLabel(formaScore)}</div>
-      </div>
-
-      <div className="card">
-        <h3>Napoved maratona</h3>
-        <div>
-          <span className="stat-val" style={{ color: predColor, fontSize: 28, letterSpacing: '-1px' }}>{predStr || '—'}</span>
+    {/* ── DANES VERDIKT ─── */}
+    <div style={{ border: `1px solid ${vb.brd}`, background: vb.bg, borderRadius: 10, padding: '14px 18px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ fontSize: 30, lineHeight: 1 }}>{verdikt.ikona}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10, fontFamily: 'DM Mono', color: vb.txt, textTransform: 'uppercase', letterSpacing: '1px', opacity: .7 }}>Danes</span>
+          <span style={{ fontSize: 19, fontWeight: 700, color: vb.txt }}>{verdikt.naslov}</span>
         </div>
-        <div className="stat-sub" style={{ color: predColor }}>
-          {predVsCilj != null
-            ? (predVsCilj <= 0 ? `${Math.abs(predVsCilj)} min pod 3:45` : `+${predVsCilj} min nad 3:45`)
-            : 'cilj: 3:45:00'}
-        </div>
-      </div>
-
-      <StatCard
-        title="Km ta teden"
-        value={fmt(kmTaTeden)}
-        unit="km"
-        sub={`plan: ${kmPlan} km`}
-        color={kmTaTeden >= kmPlan ? '#22c55e' : '#f97316'}
-      />
-
-      <StatCard title="Dni do maratona" value={dniDoMaratona} sub="17. oktober 2026" />
-    </div>
-
-    {/* ── ROW 2: TRENING + NASLEDNJI TRENING ─── */}
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
-
-      {/* Trening & Load */}
-      <div className="card">
-        <h3>Trening & obremenitev</h3>
-
-        {/* ATL / CTL / Razmerje */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
-          {[
-            { lab: 'ATL', val: atl || '—', sub: '7-dnevno', color: '#e2e8f0' },
-            { lab: 'CTL', val: ctl || '—', sub: '28-dnevno', color: '#e2e8f0' },
-            { lab: 'ATL / CTL', val: razmerje ? fmt(razmerje, 2) : '—', sub: razmerjeOpis, color: razmerjeColor },
-          ].map(({ lab, val, sub, color }) => (
-            <div key={lab} style={{ textAlign: 'center', padding: '10px 6px', background: '#0f172a', borderRadius: 8 }}>
-              <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 5 }}>{lab}</div>
-              <div style={{ fontSize: 24, fontFamily: 'DM Mono', fontWeight: 300, color, lineHeight: 1 }}>{val}</div>
-              <div style={{ fontSize: 10, color: lab === 'ATL / CTL' ? color : '#475569', marginTop: 4 }}>{sub}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Zadnji tek */}
-        <div style={{ borderTop: '1px solid #1e2433', paddingTop: 12 }}>
-          <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>
-            Zadnji tek
-            {zadnjiTek && <span style={{ fontFamily: 'DM Mono', color: '#64748b', marginLeft: 8, textTransform: 'none', letterSpacing: 0 }}>{zadnjiTek.datum}</span>}
-          </div>
-          {zadnjiTek ? (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                {[
-                  { lab: 'Razdalja', val: `${fmt(zadnjiTek.razdalja_km)} km`, color: '#e2e8f0' },
-                  { lab: 'Tempo', val: zadnjiTek.povprecni_tempo || '—', color: '#e2e8f0' },
-                  { lab: 'Povp. HR', val: zadnjiTek.povprecni_hr ? `${zadnjiTek.povprecni_hr} bpm` : '—', color: hrZonaColor(zadnjiTek.povprecni_hr) },
-                  { lab: 'HR Zona', val: hrZona(zadnjiTek.povprecni_hr), color: hrZonaColor(zadnjiTek.povprecni_hr) },
-                ].map(({ lab, val, color }) => (
-                  <div key={lab}>
-                    <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3 }}>{lab}</div>
-                    <div style={{ fontSize: 16, fontFamily: 'DM Mono', color }}>{val}</div>
-                  </div>
-                ))}
-              </div>
-              {(zadnjiTek.vo2max || zadnjiTek.aerobni_te) && (
-                <div style={{ marginTop: 10, fontSize: 11, color: '#475569', fontFamily: 'DM Mono' }}>
-                  {zadnjiTek.vo2max ? `VO2max ${fmt(zadnjiTek.vo2max, 1)} ml/kg/min` : ''}
-                  {zadnjiTek.vo2max && zadnjiTek.aerobni_te ? ' · ' : ''}
-                  {zadnjiTek.aerobni_te ? `Trening. efekt ${zadnjiTek.aerobni_te.toFixed(1)}` : ''}
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{ color: '#475569', fontSize: 12 }}>Ni tekov v bazi</div>
-          )}
-        </div>
-      </div>
-
-      {/* Naslednji trening */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-        <h3>Naslednji trening</h3>
-        {naslednji ? (
-          <>
-            <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'DM Mono', marginBottom: 6 }}>{naslednji.datum}</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>{naslednji.naziv}</div>
-            <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.65, marginBottom: 12, flex: 1 }}>{naslednji.opis}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid #1e2433', paddingTop: 10 }}>
-              {[
-                ['Razdalja', `${naslednji.km} km`],
-                ['Ciljni tempo', `${naslednji.tempo}/km`],
-                ['HR', naslednji.hr || '—'],
-              ].map(([k, v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>{k}</span>
-                  <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: '#94a3b8' }}>{v}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="empty" style={{ padding: 24 }}>Ni načrtovanih treningov</div>
+        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3, fontFamily: 'DM Mono' }}>{verdikt.razlog}</div>
+        {verdikt.plan && verdikt.nivo !== 'green' && (
+          <div style={{ fontSize: 11, color: '#475569', marginTop: 2, fontFamily: 'DM Mono' }}>plan: {verdikt.plan}</div>
         )}
       </div>
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontSize: 22, fontFamily: 'DM Mono', fontWeight: 300, color: '#e2e8f0' }}>{dniDoMaratona}</div>
+        <div style={{ fontSize: 10, color: '#475569', fontFamily: 'DM Mono' }}>dni do maratona</div>
+        <div style={{ fontSize: 10, color: '#475569', fontFamily: 'DM Mono' }}>17.10.2026</div>
+      </div>
     </div>
 
-    {/* ── ROW 3: PREHRANA + TELO ─── */}
-    <div className="grid2">
-
-      {/* Prehrana & Makri */}
+    {/* ── 3 SEVERNICE ─── */}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+      {/* Napoved */}
       <div className="card">
-        <h3>
-          Prehrana
-          <span style={{ fontSize: 10, color: '#475569', fontFamily: 'DM Mono', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 8 }}>
-            {zadnjiMfpDatum}
-          </span>
-        </h3>
-
-        {/* Kcal balance */}
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>Zaužite</div>
-            <div style={{ fontSize: 26, fontFamily: 'DM Mono', fontWeight: 300 }}>
-              {zauziteKcal || '—'}
-              <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>kcal</span>
-            </div>
-          </div>
-          <div style={{ fontSize: 14, color: '#334155', paddingBottom: 5 }}>vs</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>Porabljene</div>
-            <div style={{ fontSize: 26, fontFamily: 'DM Mono', fontWeight: 300 }}>
-              {skupajPorabljene}
-              <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>kcal</span>
-            </div>
-          </div>
+        <h3>Napoved maratona <CardLink onClick={() => onNavigate('predikcija')}>predikcija</CardLink></h3>
+        <div><span className="stat-val" style={{ color: predColor, fontSize: 28, letterSpacing: '-1px' }}>{predStr || '—'}</span></div>
+        <div className="stat-sub" style={{ color: predColor }}>
+          {predVsCilj != null ? (predVsCilj <= 0 ? `${Math.abs(predVsCilj)} min pod 3:45` : `+${predVsCilj} min nad 3:45`) : 'cilj: 3:45:00'}
         </div>
+        <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'DM Mono', marginTop: 4 }}>
+          {tekmaStr && <span>tekma ~{tekmaStr.slice(0, 4)}</span>}
+          {napovedTrend && <span style={{ color: napovedTrend.color }}>{tekmaStr ? ' · ' : ''}{napovedTrend.txt}</span>}
+        </div>
+      </div>
 
+      {/* Pripravljenost */}
+      <KpiCard
+        naslov="Pripravljenost"
+        glavna={pripravljenost ? `${pripravljenost}%` : '—'}
+        glavnaColor={pripravljenostColor(pripravljenost)}
+        sub={pripravljenostLabel(pripravljenost)}
+        subColor={pripravljenostColor(pripravljenost)}
+        trend={hrvTrend}
+      />
+
+      {/* Ta teden */}
+      <div className="card">
+        <h3>Ta teden <CardLink onClick={() => onNavigate('treningi')}>treningi</CardLink></h3>
+        <div><span className="stat-val" style={{ color: kmTaTeden >= kmPlan ? '#22c55e' : '#f97316' }}>{fmt(kmTaTeden)}</span><span className="stat-unit">/ {kmPlan} km</span></div>
+        <div className="stat-sub">forma {formaScore ? fmt(formaScore) : '—'} · {formaLabel(formaScore)}</div>
+        <div style={{ fontSize: 11, color: razmerjeColor, fontFamily: 'DM Mono', marginTop: 4 }}>
+          ATL/CTL {razmerje ? fmt(razmerje, 2) : '—'} · {razmerjeOpis}
+        </div>
+      </div>
+    </div>
+
+    {/* ── POVZETEK: Regeneracija + Energija ─── */}
+    <div className="grid2">
+      {/* Regeneracija */}
+      <div className="card">
+        <h3>Regeneracija <CardLink onClick={() => onNavigate('telo')}>telo &amp; HRV</CardLink></h3>
+        <MetrikaRow label="HRV" value={hrv3 ? `${Math.round(hrv3)} ms` : '—'} sub={hrv7 ? `7d povp: ${Math.round(hrv7)} ms` : ''} delta={hrv3 && hrv7 ? hrv3 - hrv7 : null} />
+        <MetrikaRow label="Spanje" value={zadnjeM.spanje_h ? `${fmt(zadnjeM.spanje_h, 1)} h` : '—'} sub={spanje7 ? `7d povp: ${fmt(spanje7, 1)} h` : ''} />
+        <MetrikaRow label="HR počitek" value={rhr3 ? `${Math.round(rhr3)} bpm` : '—'} sub={rhr7 ? `7d povp: ${Math.round(rhr7)} bpm` : ''} delta={rhrPorast} deltaReverse />
+        <MetrikaRow label="Stres" value={stres7 ? `${Math.round(stres7)} / 100` : '—'} sub="7d povp." last />
+      </div>
+
+      {/* Energija & teža */}
+      <div className="card">
+        <h3>Energija &amp; teža <CardLink onClick={() => onNavigate('prehrana')}>prehrana</CardLink></h3>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2 }}>Zaužite</div>
+            <div style={{ fontSize: 22, fontFamily: 'DM Mono', fontWeight: 300 }}>{zauziteKcal || '—'}<span style={{ fontSize: 11, color: '#64748b', marginLeft: 3 }}>kcal</span></div>
+          </div>
+          <div style={{ fontSize: 13, color: '#334155', paddingBottom: 4 }}>vs</div>
+          <div>
+            <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2 }}>Porabljene</div>
+            <div style={{ fontSize: 22, fontFamily: 'DM Mono', fontWeight: 300 }}>{skupajPorabljene}<span style={{ fontSize: 11, color: '#64748b', marginLeft: 3 }}>kcal</span></div>
+          </div>
+          <div style={{ fontSize: 10, color: '#475569', fontFamily: 'DM Mono', paddingBottom: 4, marginLeft: 'auto' }}>{zadnjiMfpDatum}</div>
+        </div>
         {zauziteKcal > 0 && (
-          <div style={{
-            padding: '7px 12px', borderRadius: 6,
-            background: deficit > 0 ? '#052e1620' : '#45180320',
-            border: `1px solid ${deficit > 0 ? '#14532d' : '#78350f'}`,
-            marginBottom: 14,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          }}>
+          <div style={{ padding: '7px 12px', borderRadius: 6, background: deficit > 0 ? '#052e1620' : '#45180320', border: `1px solid ${deficit > 0 ? '#14532d' : '#78350f'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
             <span style={{ fontFamily: 'DM Mono', fontSize: 13, fontWeight: 500, color: deficit > 0 ? '#86efac' : '#fcd34d' }}>
               {deficit > 0 ? '+' : ''}{Math.round(deficit)} kcal {deficit > 0 ? 'suficit' : 'deficit'}
             </span>
-            {avgDeficit7 !== null && (
-              <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'DM Mono' }}>
-                7d: {avgDeficit7 > 0 ? '+' : ''}{avgDeficit7} kcal/dan
-              </span>
-            )}
+            {avgDeficit7 !== null && <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'DM Mono' }}>7d: {avgDeficit7 > 0 ? '+' : ''}{avgDeficit7} kcal/dan</span>}
           </div>
         )}
-
-        <div style={{ borderTop: '1px solid #1e2433', paddingTop: 12 }}>
-          <MacroBar label="Beljakovine" value={vP.beljakovine_g} goal={ciljBelj} color="#a78bfa" />
-          <MacroBar label="Ogljikovi hidrati" value={vP.ogljikovi_hidrati_g} goal={ciljOH} color="#3b82f6" />
-          <MacroBar label="Maščobe" value={vP.masc_g} goal={ciljMasc} color="#f59e0b" />
-        </div>
-      </div>
-
-      {/* Telo & Regeneracija */}
-      <div className="card">
-        <h3>Telo & regeneracija</h3>
-        <MetrikaRow
-          label="Teža"
-          value={zadnjaTeza ? `${fmt(zadnjaTeza)} kg` : '—'}
-          sub={planTeden ? `cilj: ${planTeden.ciljnaKg} kg` : ''}
-          delta={tezaDelta}
-          deltaReverse={true}
-        />
-        <MetrikaRow
-          label="HRV"
-          value={hrv3avg ? `${Math.round(hrv3avg)} ms` : (zadnjeM.hrv ? `${Math.round(zadnjeM.hrv)} ms` : '—')}
-          sub={hrv7avg ? `7d povp: ${Math.round(hrv7avg)} ms` : ''}
-          delta={hrvDelta}
-        />
-        <MetrikaRow
-          label="Spanje"
-          value={zadnjeM.spanje_h ? `${fmt(zadnjeM.spanje_h, 1)} h` : '—'}
-          sub={spanje7avg ? `7d povp: ${fmt(spanje7avg, 1)} h` : ''}
-          delta={null}
-        />
-        <MetrikaRow
-          label="HR počitek"
-          value={rhr3avg ? `${rhr3avg} bpm` : '—'}
-          sub={rhr7avg ? `7d povp: ${rhr7avg} bpm` : ''}
-          delta={rhr3avg && rhr7avg ? rhr3avg - rhr7avg : null}
-          deltaReverse={true}
-        />
-        <MetrikaRow
-          label="Stres"
-          value={zadnjeM.stres_povprecje ? `${Math.round(zadnjeM.stres_povprecje)} / 100` : '—'}
-          sub={''}
-          delta={null}
-          last={!koraki}
-        />
-        {koraki && (
-          <MetrikaRow
-            label="Koraki"
-            value={koraki >= 1000 ? `${(koraki / 1000).toFixed(1)}k` : String(koraki)}
-            sub={''}
-            delta={null}
-            last={true}
-          />
+        <MetrikaRow label="Teža" value={zadnjaTeza ? `${fmt(zadnjaTeza)} kg` : '—'} sub={planTeden ? `cilj T${currentTeden}: ${planTeden.ciljnaKg} kg` : ''} delta={tezaDelta} deltaReverse last />
+        {zadnjiTek && (
+          <div style={{ fontSize: 11, color: '#475569', fontFamily: 'DM Mono', marginTop: 8, paddingTop: 8, borderTop: '1px solid #0f172a' }}>
+            Zadnji tek {zadnjiTek.datum?.slice(5)}: {fmt(zadnjiTek.razdalja_km)} km @ {zadnjiTek.povprecni_tempo || '—'}
+            {zadnjiTek.povprecni_hr ? <span style={{ color: hrZonaColor(zadnjiTek.povprecni_hr) }}> · {zadnjiTek.povprecni_hr} bpm</span> : ''}
+          </div>
         )}
       </div>
     </div>

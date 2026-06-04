@@ -326,30 +326,16 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                   const easyPaces = baseEasyL.map(l => parsePace(l.povprecni_tempo)).filter(Boolean)
                   const easyAvgPaceSec = easyPaces.length ? Math.round(easyPaces.reduce((s,p)=>s+p,0)/easyPaces.length) : null
 
-                  // Comp easy lapi: compWorkoutId, ali zadnji tek če je bg custom
+                  // Primerjalni tek — CELE laps (vse faze), ne le ogrevanje
                   const rawCompLaps = compWorkoutId
                     ? laps.filter(l => String(l.garmin_activity_id) === String(compWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
                     : bgWorkoutId ? a.lapi : []
-                  const rawCompHasStr = rawCompLaps.some(l => l.intensity_type)
-                  const compEasyL = rawCompHasStr
-                    ? rawCompLaps.filter(l => l.intensity_type === 'WARMUP')
-                    : rawCompLaps
-
-                  // Poravnaj po poziciji (ne lap_number, ker se razlikujeta med teki)
-                  const compByLap = {}
-                  baseEasyL.forEach((l, i) => {
-                    const cl = compEasyL[i]
-                    if (cl) compByLap[l.lap_number] = {
-                      compHr: cl.povprecni_hr || null,
-                      compPace: parsePace(cl.povprecni_tempo),
-                    }
-                  })
 
                   // Strukturiran tek (intervali/strides) → proporcionalna časovna os;
                   // easy/long run → ostane po lapih (idx, ker so avto-lapi ~1 km enakomerni).
                   const isStructured = baseLapsFull.some(l => l.intensity_type === 'ACTIVE' || l.intensity_type === 'RECOVERY')
 
-                  // Full run data + kumulativni čas (min) — širina rezine = dejansko trajanje lapa
+                  // Osnovni tek + kumulativni čas (min) — širina rezine = dejansko trajanje lapa
                   let cumSec = 0
                   const fullRunData = baseLapsFull.map((l, i) => {
                     const tStart = cumSec / 60
@@ -365,9 +351,28 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                       chartPhase: toChartPhase(l.intensity_type),
                       targetLow: l.target_pace_low_sec || null,
                       targetHigh: l.target_pace_high_sec || null,
-                      ...(compByLap[l.lap_number] || {}),
                     }
                   })
+                  const baseTotalMin = cumSec / 60
+
+                  // Primerjalni tek — cele laps, poravnan po lastnem kumulativnem času (strukturiran)
+                  // ali po indeksu lapa (easy/long); prikaže se kot ločena, popolna krivulja.
+                  let compCumSec = 0
+                  const compPoints = rawCompLaps.map((l, i) => {
+                    const cStart = compCumSec / 60
+                    compCumSec += (l.trajanje_sec || 0)
+                    const cEnd = compCumSec / 60
+                    return {
+                      x: isStructured ? (cStart + cEnd) / 2 : i + 1,
+                      idxComp: i + 1,
+                      compHr: l.povprecni_hr || null,
+                      compPace: parsePace(l.povprecni_tempo),
+                      phase: l.intensity_type || 'RUN',
+                      chartPhase: toChartPhase(l.intensity_type),
+                      _comp: true,
+                    }
+                  }).filter(d => d.compHr || d.compPace)
+                  const compTotalMin = compCumSec / 60
 
                   // Unique chart phases in order of appearance (for legend)
                   const uniquePhases = []
@@ -383,28 +388,64 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                     else phaseRanges.push({ phase: d.chartPhase, start, end })
                   })
 
-                  // Display data — zoom filtrira po chartPhase, ohrani x
-                  const displayData = activePhase
-                    ? fullRunData.filter(d => d.chartPhase === activePhase)
-                    : fullRunData
-
                   const hasComp = !!(compWorkoutId || bgWorkoutId)
-                  const showComp = hasComp && (!activePhase || activePhase === 'WARMUP' || activePhase === 'RUN')
-                  const compForDisplay = displayData
 
-                  // Ciljne pace cone (samo strukturiran tek z uvoženim targetom)
-                  const targetBands = isStructured
-                    ? displayData.filter(d => d.targetLow && d.targetHigh)
-                    : []
+                  // Dva načina prikaza:
+                  //  • poln tek (brez zooma): časovna os (strukturiran) ali lap-indeks (easy)
+                  //  • segment zoom (activePhase): re-indeksiraj lape segmenta 1..n in poravnaj
+                  //    osnovni + primerjalni tek po poziciji v segmentu (stride#1 vs stride#1 …)
+                  let compForDisplay, targetBands, shadeRanges, xMin, xMax, xTicks
+                  let showComp, timeAxis, dispPaceMin, dispPaceMax
 
-                  const paceVals = [
-                    ...compForDisplay.map(d => d.pace).filter(Boolean),
-                    ...targetBands.flatMap(d => [d.targetLow, d.targetHigh]),
-                  ]
-                  const dispPaceMin = paceVals.length ? Math.min(...paceVals) - 10 : 0
-                  const dispPaceMax = paceVals.length ? Math.max(...paceVals) + 10 : 400
-                  const xMin = displayData.length > 0 ? (isStructured ? displayData[0].tStart : displayData[0].idx - 0.5) : 0.5
-                  const xMax = displayData.length > 0 ? (isStructured ? displayData[displayData.length-1].tEnd : displayData[displayData.length-1].idx + 0.5) : 1.5
+                  if (activePhase) {
+                    timeAxis = false
+                    const baseSeg = fullRunData.filter(d => d.chartPhase === activePhase)
+                      .map((d, i) => ({ ...d, x: i + 1, segIdx: i + 1 }))
+                    const compSeg = (hasComp ? compPoints.filter(d => d.chartPhase === activePhase) : [])
+                      .map((d, i) => ({ ...d, x: i + 1, segIdx: i + 1 }))
+                    showComp = compSeg.length > 0
+                    compForDisplay = [...baseSeg, ...compSeg].sort((p, q) => p.x - q.x)
+                    const segLen = Math.max(baseSeg.length, compSeg.length)
+                    xMin = 0.5; xMax = segLen + 0.5
+                    xTicks = Array.from({ length: segLen }, (_, i) => i + 1)
+                    targetBands = baseSeg.filter(d => d.targetLow && d.targetHigh)
+                      .map(d => ({ x1: d.segIdx - 0.5, x2: d.segIdx + 0.5, targetLow: d.targetLow, targetHigh: d.targetHigh }))
+                    // osenči delovne (ACTIVE) lape osnovnega teka znotraj segmenta
+                    shadeRanges = baseSeg.filter(d => d.phase === 'ACTIVE')
+                      .map(d => ({ phase: 'STRIDES', start: d.segIdx - 0.5, end: d.segIdx + 0.5 }))
+                    const segPaces = [
+                      ...baseSeg.map(d => d.pace).filter(Boolean),
+                      ...compSeg.map(d => d.compPace).filter(Boolean),
+                      ...targetBands.flatMap(d => [d.targetLow, d.targetHigh]),
+                    ]
+                    dispPaceMin = segPaces.length ? Math.min(...segPaces) - 10 : 0
+                    dispPaceMax = segPaces.length ? Math.max(...segPaces) + 10 : 400
+                  } else {
+                    timeAxis = isStructured
+                    showComp = hasComp && compPoints.length > 0
+                    compForDisplay = showComp
+                      ? [...fullRunData, ...compPoints].sort((p, q) => p.x - q.x)
+                      : fullRunData
+                    targetBands = isStructured
+                      ? fullRunData.filter(d => d.targetLow && d.targetHigh)
+                          .map(d => ({ x1: d.tStart, x2: d.tEnd, targetLow: d.targetLow, targetHigh: d.targetHigh }))
+                      : []
+                    shadeRanges = phaseRanges
+                    const compLen = showComp ? compPoints.length : 0
+                    xMin = isStructured ? 0 : 0.5
+                    xMax = isStructured
+                      ? Math.max(baseTotalMin, showComp ? compTotalMin : 0)
+                      : Math.max(baseLapsFull.length, compLen) + 0.5
+                    xTicks = isStructured ? undefined
+                      : Array.from({ length: Math.max(baseLapsFull.length, compLen) }, (_, i) => i + 1)
+                    const paceVals = [
+                      ...fullRunData.map(d => d.pace).filter(Boolean),
+                      ...(showComp ? compPoints.map(d => d.compPace).filter(Boolean) : []),
+                      ...targetBands.flatMap(d => [d.targetLow, d.targetHigh]),
+                    ]
+                    dispPaceMin = paceVals.length ? Math.min(...paceVals) - 10 : 0
+                    dispPaceMax = paceVals.length ? Math.max(...paceVals) + 10 : 400
+                  }
 
                   if (fullRunData.length < 2) return null
 
@@ -484,20 +525,37 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
 
 
                       {/* Chart */}
-                      {isStructured && (
+                      {timeAxis && (
                         <div style={{fontSize:10,color:'#475569',fontFamily:'DM Mono',marginBottom:6}}>
                           os X = čas teka (min) · širina rezine = trajanje lapa{targetBands.length>0 ? ' · zelena cona = ciljni tempo' : ''}
                         </div>
                       )}
+                      {activePhase && (
+                        <div style={{fontSize:10,color:'#475569',fontFamily:'DM Mono',marginBottom:6}}>
+                          os X = zaporedni lap v segmentu{showComp ? ' · poravnano: lap#1 vs lap#1 obeh tekov' : ''}{targetBands.length>0 ? ' · zelena cona = ciljni tempo' : ''}
+                        </div>
+                      )}
+                      {showComp && (() => {
+                        const compW = compWorkoutId ? workouts.find(w=>String(w.garmin_activity_id)===String(compWorkoutId)) : null
+                        const bgW = bgWorkoutId ? workouts.find(w=>String(w.garmin_activity_id)===String(bgWorkoutId)) : null
+                        const baseName = bgWorkoutId ? (bgW?.naziv || 'ozadje') : a.tek.naziv
+                        const compName = compWorkoutId ? (compW?.naziv || 'primerjava') : a.tek.naziv
+                        return (
+                          <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',marginBottom:6,display:'flex',gap:14,flexWrap:'wrap'}}>
+                            <span style={{opacity:0.5}}>━ {baseName} (osnovni)</span>
+                            <span style={{fontWeight:600,color:'#94a3b8'}}>━ {compName} (primerjava, polna)</span>
+                          </div>
+                        )
+                      })()}
                       <ResponsiveContainer width="100%" height={220}>
                         <ComposedChart data={compForDisplay} margin={{top:4,right:8,left:4,bottom:0}}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#1e2433"/>
                           <XAxis dataKey="x" type="number"
                             domain={[xMin, xMax]}
-                            ticks={isStructured ? undefined : displayData.map(d => d.idx)}
-                            tickFormatter={isStructured ? (v => `${Math.round(v)}′`) : undefined}
+                            ticks={xTicks}
+                            tickFormatter={timeAxis ? (v => `${Math.round(v)}′`) : undefined}
                             tick={{fontSize:10,fill:'#475569',fontFamily:'DM Mono'}}
-                            label={{value:isStructured?'min':'lap',position:'insideBottomRight',offset:-2,fontSize:10,fill:'#475569'}}/>
+                            label={{value:timeAxis?'min':'lap',position:'insideBottomRight',offset:-2,fontSize:10,fill:'#475569'}}/>
                           <YAxis yAxisId="hr" domain={['auto','auto']} tick={{fontSize:10,fill:'#f97316',fontFamily:'DM Mono'}} width={32}/>
                           <YAxis yAxisId="pace" orientation="right" reversed={true} domain={[dispPaceMin,dispPaceMax]}
                             tick={{fontSize:10,fill:'#3b82f6',fontFamily:'DM Mono'}} width={38}
@@ -506,53 +564,52 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                             if (!active||!payload?.length) return null
                             const d = payload[0]?.payload
                             if (!d) return null
-                            const ph = d.chartPhase || d.phase
-                            const col = PHASE_COLOR[ph]||'#94a3b8'
-                            const pm = d.pace ? Math.floor(d.pace/60) : null
-                            const ps = d.pace ? String(d.pace%60).padStart(2,'0') : null
-                            const cpm = d.compPace ? Math.floor(d.compPace/60) : null
-                            const cps = d.compPace ? String(d.compPace%60).padStart(2,'0') : null
+                            const fmtP = p => p ? `${Math.floor(p/60)}:${String(p%60).padStart(2,'0')}` : '—'
                             const compW = compWorkoutId ? workouts.find(w=>String(w.garmin_activity_id)===String(compWorkoutId)) : null
                             const bgW = bgWorkoutId ? workouts.find(w=>String(w.garmin_activity_id)===String(bgWorkoutId)) : null
+                            const compName = compW?.naziv || bgW?.naziv || 'Primerjava'
+                            // točka primerjalnega teka
+                            if (d._comp) {
+                              return (
+                                <div style={{background:'#111827',border:'1px solid #94a3b844',borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
+                                  <div style={{color:'#94a3b8',fontWeight:600,marginBottom:4,fontSize:10}}>{compName}{d.idxComp?` · lap ${d.idxComp}`:''}</div>
+                                  <div style={{color:'#f97316'}}>HR: {d.compHr??'—'} bpm</div>
+                                  <div style={{color:'#3b82f6'}}>Pace: {fmtP(d.compPace)} /km</div>
+                                </div>
+                              )
+                            }
+                            // točka osnovnega teka
+                            const ph = d.chartPhase || d.phase
+                            const col = PHASE_COLOR[ph]||'#94a3b8'
                             return (
                               <div style={{background:'#111827',border:`1px solid ${col}44`,borderRadius:8,padding:'8px 12px',fontSize:11,fontFamily:'DM Mono'}}>
-                                <div style={{color:col,fontWeight:600,marginBottom:4,fontSize:10}}>{phaseLabelOf(ph)} · lap {d.idx}</div>
-                                <div style={{color:'#f97316',opacity:showComp&&compWorkoutId?0.5:1}}>HR: {d.hr??'—'} bpm</div>
-                                <div style={{color:'#3b82f6',opacity:showComp&&compWorkoutId?0.5:1}}>Pace: {pm!==null?`${pm}:${ps}`:'—'} /km</div>
+                                <div style={{color:col,fontWeight:600,marginBottom:4,fontSize:10}}>{phaseLabelOf(ph)}{d.idx?` · lap ${d.idx}`:''}{showComp?' · osnovni':''}</div>
+                                <div style={{color:'#f97316'}}>HR: {d.hr??'—'} bpm</div>
+                                <div style={{color:'#3b82f6'}}>Pace: {fmtP(d.pace)} /km</div>
                                 {d.targetLow && d.targetHigh && (
-                                  <div style={{color:'#22c55e'}}>Cilj: {Math.floor(d.targetLow/60)}:{String(d.targetLow%60).padStart(2,'0')}–{Math.floor(d.targetHigh/60)}:{String(d.targetHigh%60).padStart(2,'0')} /km</div>
-                                )}
-                                {showComp && compWorkoutId && (d.compHr||d.compPace) && (
-                                  <>
-                                    <div style={{color:'#94a3b8',fontSize:10,marginTop:5,marginBottom:2}}>{compW?.naziv||bgW?.naziv||'Primerjava'}</div>
-                                    {d.compHr&&<div style={{color:'#f97316'}}>HR: {d.compHr} bpm</div>}
-                                    {d.compPace&&<div style={{color:'#3b82f6'}}>Pace: {cpm}:{cps} /km</div>}
-                                  </>
+                                  <div style={{color:'#22c55e'}}>Cilj: {fmtP(d.targetLow)}–{fmtP(d.targetHigh)} /km</div>
                                 )}
                               </div>
                             )
                           }}/>
-                          {/* Phase shading — when zoomed show only active phase (no extendDomain on others) */}
-                          {phaseRanges
-                            .filter(p => !activePhase || p.phase === activePhase)
-                            .map((p,i) => (
-                              <ReferenceArea key={i} yAxisId="hr" x1={p.start} x2={p.end}
-                                fill={PHASE_COLOR[p.phase]||'#94a3b8'} fillOpacity={0.1}/>
-                            ))
-                          }
+                          {/* Phase shading (poln pogled: faze; zoom: delovni ACTIVE lapi) */}
+                          {shadeRanges.map((p,i) => (
+                            <ReferenceArea key={i} yAxisId="hr" x1={p.start} x2={p.end}
+                              fill={PHASE_COLOR[p.phase]||'#94a3b8'} fillOpacity={0.1}/>
+                          ))}
                           {/* Ciljna pace cona (zelena) na intervalih — samo strukturiran tek z uvoženim targetom */}
                           {targetBands.map((d,i) => (
-                            <ReferenceArea key={'tgt'+i} yAxisId="pace" x1={d.tStart} x2={d.tEnd} y1={d.targetLow} y2={d.targetHigh}
+                            <ReferenceArea key={'tgt'+i} yAxisId="pace" x1={d.x1} x2={d.x2} y1={d.targetLow} y2={d.targetHigh}
                               fill="#22c55e" fillOpacity={0.12} stroke="#22c55e" strokeOpacity={0.45} strokeDasharray="3 3"/>
                           ))}
                           <Line yAxisId="hr" type="monotone" dataKey="hr" stroke="#f97316"
-                            strokeWidth={showComp ? 1.5 : 2} strokeOpacity={showComp ? 0.3 : 1}
-                            dot={{r:4,fill:'#f97316'}} activeDot={{r:6}} name="HR" connectNulls={false}/>
+                            strokeWidth={showComp ? 1.5 : 2} strokeOpacity={showComp ? 0.35 : 1}
+                            dot={showComp ? false : {r:4,fill:'#f97316'}} activeDot={{r:6}} name="HR" connectNulls={showComp}/>
                           <Line yAxisId="pace" type="monotone" dataKey="pace" stroke="#3b82f6"
-                            strokeWidth={showComp ? 1.5 : 2} strokeOpacity={showComp ? 0.3 : 1}
-                            dot={{r:4,fill:'#3b82f6'}} activeDot={{r:6}} name="Pace" connectNulls={false}/>
-                          {showComp && <Line yAxisId="hr" type="monotone" dataKey="compHr" stroke="#f97316" strokeWidth={2} dot={{r:3,fill:'#f97316'}} connectNulls={false}/>}
-                          {showComp && <Line yAxisId="pace" type="monotone" dataKey="compPace" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}} connectNulls={false}/>}
+                            strokeWidth={showComp ? 1.5 : 2} strokeOpacity={showComp ? 0.35 : 1}
+                            dot={showComp ? false : {r:4,fill:'#3b82f6'}} activeDot={{r:6}} name="Pace" connectNulls={showComp}/>
+                          {showComp && <Line yAxisId="hr" type="monotone" dataKey="compHr" stroke="#f97316" strokeWidth={2} dot={{r:3,fill:'#f97316'}} connectNulls={true}/>}
+                          {showComp && <Line yAxisId="pace" type="monotone" dataKey="compPace" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}} connectNulls={true}/>}
                         </ComposedChart>
                       </ResponsiveContainer>
 
