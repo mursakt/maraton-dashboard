@@ -453,6 +453,25 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
 
                   if (fullRunData.length < 2) return null
 
+                  // ── Primerjalne številke: tempo, HR, napredek (upošteva zoom prek compForDisplay) ──
+                  const avgOf = (arr, key) => { const v = arr.map(d => d[key]).filter(x => x > 0); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null }
+                  const cmpMainHR = avgOf(compForDisplay.filter(d => !d._comp), 'hr')
+                  const cmpMainPace = avgOf(compForDisplay.filter(d => !d._comp), 'pace')
+                  const cmpCompHR = avgOf(compForDisplay.filter(d => d._comp), 'compHr')
+                  const cmpCompPace = avgOf(compForDisplay.filter(d => d._comp), 'compPace')
+                  const cmpMainW = bgWorkoutId ? workouts.find(w => String(w.garmin_activity_id) === String(bgWorkoutId)) : a.tek
+                  const cmpCompW = compWorkoutId ? workouts.find(w => String(w.garmin_activity_id) === String(compWorkoutId)) : (bgWorkoutId ? a.tek : null)
+                  const fmtPace = p => { if (!p) return '—'; const s = Math.round(p); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
+                  const paceDelta = (cmpMainPace != null && cmpCompPace != null) ? Math.round(cmpMainPace - cmpCompPace) : null // <0 = glavni hitrejši
+                  const hrDelta = (cmpMainHR != null && cmpCompHR != null) ? Math.round(cmpMainHR - cmpCompHR) : null         // <0 = glavni nižji HR
+                  let napredek = null
+                  if (paceDelta != null && hrDelta != null) {
+                    const faster = paceDelta <= -2, slower = paceDelta >= 2, lowerHR = hrDelta <= -2, higherHR = hrDelta >= 2
+                    if ((faster && !higherHR) || (!slower && lowerHR)) napredek = { txt: 'napredek — boljša ekonomija (hitreje/lažje)', color: '#22c55e' }
+                    else if ((slower && !lowerHR) || (!faster && higherHR)) napredek = { txt: 'nazadovanje — slabša ekonomija', color: '#ef4444' }
+                    else napredek = { txt: 'mešano — primerjaj kontekst (teren, vreme)', color: '#94a3b8' }
+                  }
+
                   return (
                     <div>
                       {/* 1. Cardiac drift — prva točka analize, samo easy segment */}
@@ -618,6 +637,34 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                             dot={{r: showComp ? 3 : 4, fill:'#3b82f6'}} activeDot={{r:6}} name="Pace" connectNulls={showComp}/>
                         </ComposedChart>
                       </ResponsiveContainer>
+
+                      {/* Primerjalne številke: tempo, HR, napredek */}
+                      {showComp && cmpMainPace != null && (
+                        <div style={{ marginTop: 12, padding: '10px 14px', background: '#080f1e', border: '1px solid #1e2433', borderRadius: 8 }}>
+                          <div style={{ fontSize: 10, color: '#475569', fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+                            Primerjava{activePhase ? ` · ${phaseLabelOf(activePhase)} segment` : ''}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr', gap: 6, fontSize: 12, fontFamily: 'DM Mono', alignItems: 'center' }}>
+                            <div></div>
+                            <div style={{ color: '#475569', fontSize: 10, textAlign: 'right' }}>TEMPO /km</div>
+                            <div style={{ color: '#475569', fontSize: 10, textAlign: 'right' }}>POVP. HR</div>
+
+                            <div style={{ color: '#cbd5e1' }}>{cmpMainW?.naziv || 'Glavni'} <span style={{ color: '#475569' }}>{cmpMainW?.datum?.slice(5)}</span></div>
+                            <div style={{ textAlign: 'right', color: '#3b82f6', fontWeight: 600 }}>{fmtPace(cmpMainPace)}</div>
+                            <div style={{ textAlign: 'right', color: hrZonaColor(Math.round(cmpMainHR)), fontWeight: 600 }}>{cmpMainHR ? Math.round(cmpMainHR) : '—'}</div>
+
+                            <div style={{ color: '#94a3b8' }}>{cmpCompW?.naziv || 'Primerjava'} <span style={{ color: '#475569' }}>{cmpCompW?.datum?.slice(5)}</span></div>
+                            <div style={{ textAlign: 'right', color: '#3b82f6', opacity: 0.65 }}>{fmtPace(cmpCompPace)}</div>
+                            <div style={{ textAlign: 'right', color: '#94a3b8', opacity: 0.65 }}>{cmpCompHR ? Math.round(cmpCompHR) : '—'}</div>
+                          </div>
+                          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #1e2433', display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11, fontFamily: 'DM Mono' }}>
+                            {paceDelta != null && <span style={{ color: '#64748b' }}>Δ tempo: <span style={{ color: paceDelta < 0 ? '#22c55e' : paceDelta > 0 ? '#f97316' : '#94a3b8', fontWeight: 600 }}>{paceDelta === 0 ? 'enako' : `${Math.abs(paceDelta)} s/km ${paceDelta < 0 ? 'hitreje' : 'počasneje'}`}</span></span>}
+                            {hrDelta != null && <span style={{ color: '#64748b' }}>Δ HR: <span style={{ color: hrDelta < 0 ? '#22c55e' : hrDelta > 0 ? '#f97316' : '#94a3b8', fontWeight: 600 }}>{hrDelta === 0 ? 'enako' : `${Math.abs(hrDelta)} bpm ${hrDelta < 0 ? 'nižje' : 'višje'}`}</span></span>}
+                            {napredek && <span style={{ color: napredek.color, fontWeight: 600 }}>→ {napredek.txt}</span>}
+                          </div>
+                          <div style={{ marginTop: 6, fontSize: 9, color: '#334155', fontFamily: 'DM Mono' }}>glavni tek (ospredje) glede na primerjalni (ozadje)</div>
+                        </div>
+                      )}
 
                     </div>
                   )
