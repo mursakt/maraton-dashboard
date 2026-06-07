@@ -178,7 +178,9 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               return parts[0] * 60 + (parts[1] || 0)
             }
 
-            const hasStructured = a.lapi.some(l => l.intensity_type)
+            // Strukturiran = ima delovne intervale (ACTIVE/RECOVERY). Garmin označi
+            // navadne 1km avto-lape z intensity_type "INTERVAL" — to NI strukturiran trening.
+            const hasStructured = a.lapi.some(l => l.intensity_type === 'ACTIVE' || l.intensity_type === 'RECOVERY')
             const activeLapi   = a.lapi.filter(l => l.intensity_type === 'ACTIVE')
             const recoveryLapi = a.lapi.filter(l => l.intensity_type === 'RECOVERY')
             const easyLapi     = hasStructured
@@ -309,13 +311,15 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
 
                 {/* ── Graf celotnega teka ── */}
                 {(() => {
-                  const toChartPhase = p => (p === 'ACTIVE' || p === 'RECOVERY') ? 'STRIDES' : (p || 'RUN')
+                  // Samo prave faze strukturiranega treninga so smiselne; ostalo (vklj. Garmin
+                  // "INTERVAL" avto-lape) je navaden tek.
+                  const toChartPhase = p => (p === 'ACTIVE' || p === 'RECOVERY') ? 'STRIDES' : (p === 'WARMUP' || p === 'COOLDOWN') ? p : 'RUN'
 
                   // Base: bgWorkoutId-ovi lapi ali zadnji tek
                   const baseLapsFull = bgWorkoutId
                     ? laps.filter(l => String(l.garmin_activity_id) === String(bgWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
                     : a.lapi
-                  const baseHasStr = baseLapsFull.some(l => l.intensity_type)
+                  const baseHasStr = baseLapsFull.some(l => l.intensity_type === 'ACTIVE' || l.intensity_type === 'RECOVERY')
                   const baseEasyL = baseHasStr
                     ? baseLapsFull.filter(l => l.intensity_type === 'WARMUP')
                     : baseLapsFull
