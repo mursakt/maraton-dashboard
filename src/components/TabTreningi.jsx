@@ -546,8 +546,8 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                         const compName = compWorkoutId ? (compW?.naziv || 'primerjava') : a.tek.naziv
                         return (
                           <div style={{fontSize:11,color:'#475569',fontFamily:'DM Mono',marginBottom:6,display:'flex',gap:14,flexWrap:'wrap'}}>
-                            <span style={{opacity:0.5}}>━ {baseName} (osnovni)</span>
-                            <span style={{fontWeight:600,color:'#94a3b8'}}>━ {compName} (primerjava, polna)</span>
+                            <span style={{fontWeight:600,color:'#94a3b8'}}>━ {baseName} (glavni, polna)</span>
+                            <span style={{opacity:0.5}}>━ {compName} (primerjava, ozadje)</span>
                           </div>
                         )
                       })()}
@@ -606,14 +606,16 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                             <ReferenceArea key={'tgt'+i} yAxisId="pace" x1={d.x1} x2={d.x2} y1={d.targetLow} y2={d.targetHigh}
                               fill="#22c55e" fillOpacity={0.12} stroke="#22c55e" strokeOpacity={0.45} strokeDasharray="3 3"/>
                           ))}
+                          {/* Primerjalni tek = zbledel v ozadju (narisan prvi, da je glavni na vrhu) */}
+                          {showComp && <Line yAxisId="hr" type="monotone" dataKey="compHr" stroke="#f97316" strokeWidth={1.5} strokeOpacity={0.32} dot={false} connectNulls={true}/>}
+                          {showComp && <Line yAxisId="pace" type="monotone" dataKey="compPace" stroke="#3b82f6" strokeWidth={1.5} strokeOpacity={0.32} dot={false} connectNulls={true}/>}
+                          {/* Glavni (zadnji) tek = polna črta v ospredju */}
                           <Line yAxisId="hr" type="monotone" dataKey="hr" stroke="#f97316"
-                            strokeWidth={showComp ? 1.5 : 2} strokeOpacity={showComp ? 0.35 : 1}
-                            dot={showComp ? false : {r:4,fill:'#f97316'}} activeDot={{r:6}} name="HR" connectNulls={showComp}/>
+                            strokeWidth={2} strokeOpacity={1}
+                            dot={{r: showComp ? 3 : 4, fill:'#f97316'}} activeDot={{r:6}} name="HR" connectNulls={showComp}/>
                           <Line yAxisId="pace" type="monotone" dataKey="pace" stroke="#3b82f6"
-                            strokeWidth={showComp ? 1.5 : 2} strokeOpacity={showComp ? 0.35 : 1}
-                            dot={showComp ? false : {r:4,fill:'#3b82f6'}} activeDot={{r:6}} name="Pace" connectNulls={showComp}/>
-                          {showComp && <Line yAxisId="hr" type="monotone" dataKey="compHr" stroke="#f97316" strokeWidth={2} dot={{r:3,fill:'#f97316'}} connectNulls={true}/>}
-                          {showComp && <Line yAxisId="pace" type="monotone" dataKey="compPace" stroke="#3b82f6" strokeWidth={2} dot={{r:3,fill:'#3b82f6'}} connectNulls={true}/>}
+                            strokeWidth={2} strokeOpacity={1}
+                            dot={{r: showComp ? 3 : 4, fill:'#3b82f6'}} activeDot={{r:6}} name="Pace" connectNulls={showComp}/>
                         </ComposedChart>
                       </ResponsiveContainer>
 
@@ -627,7 +629,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
             <div style={{fontSize:11,color:'#475569',marginBottom:6,fontFamily:'DM Mono',textTransform:'uppercase',letterSpacing:'0.5px'}}>Primerjava tekov</div>
             <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
               <div style={{flex:1,minWidth:200}}>
-                <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginBottom:4}}>Ozadje</div>
+                <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginBottom:4}}>Glavni tek (ospredje)</div>
                 <select
                   value={bgWorkoutId || ''}
                   onChange={e => setBgWorkoutId(e.target.value || null)}
@@ -647,7 +649,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                 </select>
               </div>
               <div style={{flex:1,minWidth:200}}>
-                <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginBottom:4}}>Primerjava</div>
+                <div style={{fontSize:10,color:'#334155',fontFamily:'DM Mono',marginBottom:4}}>Primerjalni tek (ozadje)</div>
                 <select
                   value={compWorkoutId || ''}
                   onChange={e => setCompWorkoutId(e.target.value || null)}
