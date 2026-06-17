@@ -26,6 +26,17 @@ function calcDecoupling(lapList) {
   return Math.round((f2 / f1 - 1) * 1000) / 10
 }
 
+// Strukturiran trening = ima delovne IN počivalne lape (intervali/strides).
+// Garmin marsikateri navaden easy/dolgi tek razreže na enolične 1km ACTIVE avto-lape —
+// to NI strukturiran trening (ni RECOVERY, ni WARMUP/COOLDOWN). Zato zahtevamo RECOVERY
+// ali mešanico ACTIVE + WARMUP/COOLDOWN, ne le prisotnost ACTIVE.
+function jeStrukturiran(lapi = []) {
+  const hasRecovery = lapi.some(l => l.intensity_type === 'RECOVERY')
+  const hasActive   = lapi.some(l => l.intensity_type === 'ACTIVE')
+  const hasWarmCool = lapi.some(l => l.intensity_type === 'WARMUP' || l.intensity_type === 'COOLDOWN')
+  return hasRecovery || (hasActive && hasWarmCool)
+}
+
 function detectTipLocal(workout) {
   const pe = najdiPlanTrening(workout)
   const o = (pe?.opis || '').toLowerCase()
@@ -133,10 +144,14 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
     return result
   }, [workouts])
 
-  const zadnjiTekZaAnalizo = workouts.find(w => isTek(w))
+  // Tek, ki ga analiziramo: privzeto zadnji, lahko pa izbran v "Glavni tek" dropdownu.
+  const zadnjiTekRun = workouts.find(w => isTek(w))
+  const analiziraniTek = bgWorkoutId
+    ? (workouts.find(w => String(w.garmin_activity_id) === String(bgWorkoutId)) || zadnjiTekRun)
+    : zadnjiTekRun
   const findings = React.useMemo(() =>
-    runRuleEngine({ zadnjiTek: zadnjiTekZaAnalizo, lapsTeka: laps, metrike, prehrana, workouts }),
-    [zadnjiTekZaAnalizo?.garmin_activity_id, laps.length, metrike.length, prehrana.length]
+    runRuleEngine({ zadnjiTek: analiziraniTek, lapsTeka: laps, metrike, prehrana, workouts }),
+    [analiziraniTek?.garmin_activity_id, laps.length, metrike.length, prehrana.length]
   )
 
   return(<>
@@ -156,15 +171,14 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
         {zadnjiVo2 && <div className="stat-sub" style={{color: zadnjiVo2>=52?'#22c55e':'#f97316',marginTop:4}}>{zadnjiVo2>=52?'✓ cilj dosežen':`${fmt(52-zadnjiVo2,1)} do cilja`}</div>}
       </div>
     </div>
-    {/* Analiza zadnjega teka */}
+    {/* Analiza teka (privzeto zadnji, lahko izbran prek "Glavni tek") */}
     {(() => {
-      const zadnjiTek = workouts.find(w => isTek(w))
-      const a = zadnjiTek ? analizirajTek(zadnjiTek, laps, metrike, prehrana, workouts) : null
+      const a = analiziraniTek ? analizirajTek(analiziraniTek, laps, metrike, prehrana, workouts) : null
       if (!a) return null
 
       return (
         <div className="card" style={{marginBottom:16}}>
-          <h3>Analiza zadnjega teka</h3>
+          <h3>Analiza teka{bgWorkoutId ? '' : ' (zadnji)'}</h3>
           <div style={{display:'flex',gap:16,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
             <span style={{fontFamily:'DM Mono',fontSize:13,color:'#94a3b8'}}>{a.tek.naziv}</span>
             <span style={{fontFamily:'DM Mono',fontSize:13,color:'#64748b'}}>{a.tek.datum}</span>
@@ -178,9 +192,9 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               return parts[0] * 60 + (parts[1] || 0)
             }
 
-            // Strukturiran = ima delovne intervale (ACTIVE/RECOVERY). Garmin označi
-            // navadne 1km avto-lape z intensity_type "INTERVAL" — to NI strukturiran trening.
-            const hasStructured = a.lapi.some(l => l.intensity_type === 'ACTIVE' || l.intensity_type === 'RECOVERY')
+            // Strukturiran = ima delovne+počivalne lape (glej jeStrukturiran). Enolični 1km
+            // ACTIVE avto-lapi navadnega teka NISO strukturiran trening.
+            const hasStructured = jeStrukturiran(a.lapi)
             const activeLapi   = a.lapi.filter(l => l.intensity_type === 'ACTIVE')
             const recoveryLapi = a.lapi.filter(l => l.intensity_type === 'RECOVERY')
             const easyLapi     = hasStructured
@@ -315,15 +329,16 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
 
                 {/* ── Graf celotnega teka ── */}
                 {(() => {
-                  // Samo prave faze strukturiranega treninga so smiselne; ostalo (vklj. Garmin
-                  // "INTERVAL" avto-lape) je navaden tek.
-                  const toChartPhase = p => (p === 'ACTIVE' || p === 'RECOVERY') ? 'STRIDES' : (p === 'WARMUP' || p === 'COOLDOWN') ? p : 'RUN'
+                  // Samo prave faze strukturiranega treninga so smiselne; pri navadnem teku
+                  // (enolični ACTIVE avto-lapi) je vse RUN — sicer bi se cel tek obarval kot STRIDES.
+                  const toChartPhase = (p, structured) => !structured ? 'RUN'
+                    : (p === 'ACTIVE' || p === 'RECOVERY') ? 'STRIDES' : (p === 'WARMUP' || p === 'COOLDOWN') ? p : 'RUN'
 
                   // Base: bgWorkoutId-ovi lapi ali zadnji tek
                   const baseLapsFull = bgWorkoutId
                     ? laps.filter(l => String(l.garmin_activity_id) === String(bgWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
                     : a.lapi
-                  const baseHasStr = baseLapsFull.some(l => l.intensity_type === 'ACTIVE' || l.intensity_type === 'RECOVERY')
+                  const baseHasStr = jeStrukturiran(baseLapsFull)
                   const baseEasyL = baseHasStr
                     ? baseLapsFull.filter(l => l.intensity_type === 'WARMUP')
                     : baseLapsFull
@@ -335,13 +350,15 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                   const easyAvgPaceSec = easyPaces.length ? Math.round(easyPaces.reduce((s,p)=>s+p,0)/easyPaces.length) : null
 
                   // Primerjalni tek — CELE laps (vse faze), ne le ogrevanje
+                  // Primerjava (ozadje) le ob izrecno izbranem primerjalnem teku — sicer samo glavni tek.
                   const rawCompLaps = compWorkoutId
                     ? laps.filter(l => String(l.garmin_activity_id) === String(compWorkoutId)).sort((x,y) => x.lap_number - y.lap_number)
-                    : bgWorkoutId ? a.lapi : []
+                    : []
 
                   // Strukturiran tek (intervali/strides) → proporcionalna časovna os;
                   // easy/long run → ostane po lapih (idx, ker so avto-lapi ~1 km enakomerni).
-                  const isStructured = baseLapsFull.some(l => l.intensity_type === 'ACTIVE' || l.intensity_type === 'RECOVERY')
+                  const isStructured = jeStrukturiran(baseLapsFull)
+                  const compHasStr = jeStrukturiran(rawCompLaps)
 
                   // Osnovni tek + kumulativni čas (min) — širina rezine = dejansko trajanje lapa
                   let cumSec = 0
@@ -356,7 +373,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                       hr: l.povprecni_hr || null,
                       pace: parsePace(l.povprecni_tempo),
                       phase: l.intensity_type || 'RUN',
-                      chartPhase: toChartPhase(l.intensity_type),
+                      chartPhase: toChartPhase(l.intensity_type, isStructured),
                       targetLow: l.target_pace_low_sec || null,
                       targetHigh: l.target_pace_high_sec || null,
                     }
@@ -376,7 +393,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                       compHr: l.povprecni_hr || null,
                       compPace: parsePace(l.povprecni_tempo),
                       phase: l.intensity_type || 'RUN',
-                      chartPhase: toChartPhase(l.intensity_type),
+                      chartPhase: toChartPhase(l.intensity_type, compHasStr),
                       _comp: true,
                     }
                   }).filter(d => d.compHr || d.compPace)
@@ -686,9 +703,9 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                   onChange={e => setBgWorkoutId(e.target.value || null)}
                   style={{background:'#1e2433',border:'1px solid #334155',borderRadius:6,color:'#94a3b8',fontSize:12,padding:'6px 12px',fontFamily:'DM Mono',cursor:'pointer',width:'100%'}}
                 >
-                  <option value="">{a.tek.datum} — {a.tek.naziv} (zadnji)</option>
+                  <option value="">{zadnjiTekRun.datum} — {zadnjiTekRun.naziv} (zadnji)</option>
                   {workouts
-                    .filter(w => isTek(w) && w.razdalja_km > 0 && w.garmin_activity_id !== a.tek.garmin_activity_id)
+                    .filter(w => isTek(w) && w.razdalja_km > 0 && w.garmin_activity_id !== zadnjiTekRun.garmin_activity_id)
                     .sort((x,y) => y.datum.localeCompare(x.datum))
                     .slice(0, 25)
                     .map(w => (
