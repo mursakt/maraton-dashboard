@@ -1,6 +1,5 @@
-import { PLAN_TRENINGI } from '../constants/plan'
 import { tempoStrToSec, secToTempoStr } from './tempo'
-import { isTek, izracunajBMR } from './helpers'
+import { isTek, izracunajBMR, najdiPlanTrening } from './helpers'
 import { izracunajLoad } from './calculations'
 
 function avg(arr) {
@@ -26,10 +25,7 @@ function tipIzOpis(opis) {
 }
 
 function najdiPlanEntry(workout) {
-  if (!workout) return null
-  const byNaziv = PLAN_TRENINGI.find(p => p.naziv === workout.naziv)
-  if (byNaziv) return byNaziv
-  return PLAN_TRENINGI.find(p => p.datum === workout.datum) || null
+  return najdiPlanTrening(workout)
 }
 
 function detectTip(workout) {

@@ -1,9 +1,9 @@
 import React from 'react'
 import { Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell } from 'recharts'
-import { TODAY, PLAN_TRENINGI } from '../constants/plan'
+import { TODAY } from '../constants/plan'
 import { izracunajLoad, analizirajTek } from '../utils/calculations'
 import { runRuleEngine } from '../utils/ruleEngine'
-import { isTek, fmt, hrZona, hrZonaColor } from '../utils/helpers'
+import { isTek, fmt, hrZona, hrZonaColor, najdiPlanTrening } from '../utils/helpers'
 import { StatCard } from './StatCard'
 import { supabase } from '../supabase'
 
@@ -27,7 +27,7 @@ function calcDecoupling(lapList) {
 }
 
 function detectTipLocal(workout) {
-  const pe = PLAN_TRENINGI.find(p => p.datum === workout.datum || p.naziv === workout.naziv)
+  const pe = najdiPlanTrening(workout)
   const o = (pe?.opis || '').toLowerCase()
   if (o.includes('maraton')) return 'race'
   if (o.includes('race pace')) return 'racepace'
@@ -187,10 +187,14 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
               ? a.lapi.filter(l => l.intensity_type === 'WARMUP' || l.intensity_type === 'COOLDOWN')
               : a.lapi
 
-            // Strides (~20s ponovitve) vs intervali (daljši) — ločimo po trajanju ACTIVE lapov
+            // Strides = časovno odmerjeni kratki pospeški (npr. 20 s, ~80 m).
+            // Intervali = odmerjeni po razdalji (npr. 800 m, ~3–4 min). Ločimo po trajanju IN razdalji
+            // ACTIVE lapov: strides so kratki po obojem, intervali daljši/dlje.
             const activeAvgSec = activeLapi.length
               ? activeLapi.reduce((s, l) => s + (l.trajanje_sec || 0), 0) / activeLapi.length : 0
-            const isStrides    = activeAvgSec > 0 && activeAvgSec <= 40
+            const activeAvgDist = activeLapi.length
+              ? activeLapi.reduce((s, l) => s + (l.razdalja_km || 0), 0) / activeLapi.length : 0
+            const isStrides    = activeAvgSec > 0 && activeAvgSec <= 45 && activeAvgDist < 0.2
             const workLabel    = isStrides ? 'strides' : 'intervali'
             const workLabelCap = isStrides ? 'Strides' : 'Interval'
             const phaseLabelOf = ph => ph === 'STRIDES' ? workLabelCap : (PHASE_LABEL[ph] || ph)
@@ -541,7 +545,7 @@ export function TabTreningi({workouts, metrike=[], prehrana=[], laps=[], onRefre
                             }}>× vse</button>
                           )}
                           <span style={{fontSize:10,color:'#1e3a5f',fontFamily:'DM Mono',marginLeft:4}}>
-                            {activePhase ? `zoom: ${PHASE_LABEL[activePhase]}` : 'klikni fazo za zoom'}
+                            {activePhase ? `zoom: ${phaseLabelOf(activePhase)}` : 'klikni fazo za zoom'}
                           </span>
                         </div>
                       )}

@@ -11,6 +11,9 @@ build/
 .env.test.local
 .env.production.local
 
+# FIT / surovi Garmin podatki (GPS, osebno)
+data/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

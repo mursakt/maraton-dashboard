@@ -1,5 +1,6 @@
 import React from 'react'
 import { PLAN, PLAN_TRENINGI, FAZA_COLOR, FAZA_LABEL } from '../constants/plan'
+import { planKodaIzNaziva } from '../utils/helpers'
 
 const TIP_ICON = { A: '⚡', B: '🏃', C: '📏' }
 const TIP_COLOR = { A: '#f97316', B: '#3b82f6', C: '#a78bfa' }
@@ -31,6 +32,7 @@ export function TabPlan({currentTeden, workouts=[]}) {
 
   const actKmByWeek = {}
   const actByDate = {}
+  const actByKoda = {}
   workouts.filter(w => w.razdalja_km > 0).forEach(w => {
     if (!w.datum) return
     const d = new Date(w.datum)
@@ -38,6 +40,8 @@ export function TabPlan({currentTeden, workouts=[]}) {
     actKmByWeek[mon.toISOString().slice(0,10)] = (actKmByWeek[mon.toISOString().slice(0,10)] || 0) + (w.razdalja_km || 0)
     if (!actByDate[w.datum]) actByDate[w.datum] = []
     actByDate[w.datum].push(w)
+    const koda = planKodaIzNaziva(w.naziv)
+    if (koda) { if (!actByKoda[koda]) actByKoda[koda] = []; actByKoda[koda].push(w) }
   })
 
   const treningiByTeden = {}
@@ -88,7 +92,9 @@ export function TabPlan({currentTeden, workouts=[]}) {
                         const suffix = t.naziv.slice(-1)
                         const tip = tipIzOpis(t.opis)
                         const badge = TIP_BADGE[tip] || TIP_BADGE.easy
-                        const actWo = actByDate[t.datum] || []
+                        // Ujemanje po planski kodi iz naziva (T09A…) — teki so poimenovani po planu,
+                        // tudi če je datum zamaknjen. Teke brez kode ujamemo po datumu.
+                        const actWo = actByKoda[t.naziv] || (actByDate[t.datum] || []).filter(w => !planKodaIzNaziva(w.naziv))
                         const actWoKm = actWo.reduce((s,w) => s+(w.razdalja_km||0), 0)
                         const actWoHR = actWo.find(w => w.povprecni_hr)?.povprecni_hr
                         const actWoTempo = actWo.find(w => w.povprecni_tempo)?.povprecni_tempo
